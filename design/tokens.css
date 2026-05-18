@@ -1,0 +1,121 @@
+/**
+ * Ciyne design tokens — Lönar-inspired, green/lemon accent
+ * Framework-agnostic; import in globals.css or link from primitives.html
+ */
+
+:root {
+  /* Accent — green/lemon (replaces Lönar pink) */
+  --accent-50: #f7fee7;
+  --accent-400: #a3e635;
+  --accent-500: #84cc16;
+  --accent-600: #65a30d;
+  --lemon-200: #fef08a;
+
+  /* Neutrals */
+  --bg-page: #f4f5f7;
+  --surface: #ffffff;
+  --border: #e2e5eb;
+  --border-strong: #b0bac9;
+  --text-primary: #1a2332;
+  --text-secondary: #6b788e;
+  --text-muted: #98a1b0;
+  --btn-primary-bg: #2d3748;
+  --btn-primary-fg: #ffffff;
+  --btn-secondary-border: #d1d5db;
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-fg: #1a2332;
+  --btn-disabled-bg: #e2e5eb;
+  --btn-disabled-fg: #98a1b0;
+
+  /* Semantic aliases */
+  --color-accent: var(--accent-500);
+  --color-accent-hover: var(--accent-400);
+  --color-accent-muted: var(--accent-50);
+  --color-accent-strong: var(--accent-600);
+  --color-surface: var(--surface);
+  --color-page: var(--bg-page);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  /* Step progress */
+  --step-active: var(--accent-500);
+  --step-complete: var(--accent-400);
+  --step-inactive: #e5e7eb;
+
+  /* Typography */
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 20px;
+  --font-size-xl: 24px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-body: 1.5;
+  --line-height-heading: 1.2;
+
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadow */
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.04);
+
+  /* Focus */
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-500);
+
+  /* Layout */
+  --header-height: 64px;
+  --content-max-width: 1280px;
+  --split-form: 1fr;
+  --split-preview: 1.4fr;
+  --split-gap: var(--space-6);
+
+  /* Brand mark */
+  --brand-gradient: linear-gradient(
+    135deg,
+    var(--lemon-200) 0%,
+    var(--accent-500) 100%
+  );
+}
+
+/* Tailwind v4 @theme-ready block (optional import) */
+@theme inline {
+  --color-accent-50: var(--accent-50);
+  --color-accent-400: var(--accent-400);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-lemon-200: var(--lemon-200);
+  --color-page: var(--bg-page);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --font-sans: var(--font-sans);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --shadow-card: var(--shadow-card);
+}

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ciyne Design Primitives</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="layout.css" />
+</head>
+<body>
+
+  <!-- Token & component QA -->
+  <div class="ciyne-qa">
+    <header style="margin-bottom: var(--space-12);">
+      <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2);">
+        <span class="ciyne-brand-mark ciyne-brand-mark--md" aria-hidden="true">
+          <svg class="ciyne-brand-mark__glyph" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <h1 style="margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-bold);">Ciyne Design Primitives</h1>
+      </div>
+      <p style="margin: 0; color: var(--text-secondary); font-size: var(--font-size-base);">
+        Lönar-inspired direction · green/lemon accent · open this file in a browser to sign off tokens and layout.
+      </p>
+    </header>
+
+    <section class="ciyne-qa__section" aria-labelledby="swatches-heading">
+      <h2 id="swatches-heading" class="ciyne-qa__section-title">Color tokens</h2>
+      <div class="ciyne-swatch-grid">
+        <div class="ciyne-swatch">
+          <div class="ciyne-swatch__color" style="background: var(--accent-500);"></div>
+          <div class="ciyne-swatch__label">accent-500<span class="ciyne-swatch__hex">#84CC16</span></div>
+        </div>
+        <div class="ciyne-swatch">
+          <div class="ciyne-swatch__color" style="background: var(--accent-400);"></div>
+          <div class="ciyne-swatch__label">accent-400<span class="ciyne-swatch__hex">#A3E635</span></div>
+        </div>
+        <div class="ciyne-swatch">
+          <div class="ciyne-swatch__color" style="background: var(--accent-600);"></div>
+          <div class="ciyne-swatch__label">accent-600<span class="ciyne-swatch__hex">#65A30D</span></div>
+        </div>
+        <div class="ciyne-swatch">
+          <div class="ciyne-swatch__color" style="background: var(--accent-50); border-bottom: 1px solid var(--border);"></div>
+          <div class="ciyne-swatch__label">accent-50<span class="ciyne-swatch__hex">#F7FEE7</span></div>
+        </div>
+        <div class="ciyne-swatch">
+          <div class="ciyne-swatch__color" style="background: var(--lemon-200);"></div>
+          <div class="ciyne-swatch__label">lemon-200<span class="ciyne-swatch__hex">#FEF08A</span></div>
+        </div>
+        <div class="ciyne-swatch">
+          <div class="ciyne-swatch__color" style="background: var(--bg-page);"></div>
+          <div class="ciyne-swatch__label">bg-page<span class="ciyne-swatch__hex">#F4F5F7</span></div>
+        </div>
+        <div class="ciyne-swatch">
+          <div class="ciyne-swatch__color" style="background: var(--text-primary);"></div>
+          <div class="ciyne-swatch__label">text-primary<span class="ciyne-swatch__hex">#1A2332</span></div>
+        </div>
+        <div class="ciyne-swatch">
+          <div class="ciyne-swatch__color" style="background: var(--btn-primary-bg);"></div>
+          <div class="ciyne-swatch__label">btn-primary<span class="ciyne-swatch__hex">#2D3748</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ciyne-qa__section" aria-labelledby="type-heading">
+      <h2 id="type-heading" class="ciyne-qa__section-title">Typography</h2>
+      <div class="ciyne-type-sample">
+        <div class="ciyne-type-sample__label">24px / bold — page title</div>
+        <p style="margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); line-height: var(--line-height-heading);">Create Invoice</p>
+      </div>
+      <div class="ciyne-type-sample">
+        <div class="ciyne-type-sample__label">20px / bold — surface title</div>
+        <p style="margin: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">Invoice terms</p>
+      </div>
+      <div class="ciyne-type-sample">
+        <div class="ciyne-type-sample__label">14px / medium — body</div>
+        <p style="margin: 0; font-size: var(--font-size-base); font-weight: var(--font-weight-medium); color: var(--text-secondary);">JPG &amp; PNG only up to 5MB</p>
+      </div>
+      <div class="ciyne-type-sample">
+        <div class="ciyne-type-sample__label">13px / semibold — field label</div>
+        <p style="margin: 0; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold);">Invoice number</p>
+      </div>
+      <div class="ciyne-type-sample">
+        <div class="ciyne-type-sample__label">12px / medium — caption</div>
+        <p style="margin: 0; font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); color: var(--text-muted);">Item · Quantity · Unit price</p>
+      </div>
+    </section>
+
+    <section class="ciyne-qa__section" aria-labelledby="buttons-heading">
+      <h2 id="buttons-heading" class="ciyne-qa__section-title">Buttons</h2>
+      <div class="ciyne-qa__row">
+        <button type="button" class="ciyne-btn ciyne-btn--primary">Continue</button>
+        <button type="button" class="ciyne-btn ciyne-btn--secondary">Preview</button>
+        <button type="button" class="ciyne-btn ciyne-btn--ghost">Browse files</button>
+        <button type="button" class="ciyne-btn ciyne-btn--primary" disabled>Next (disabled)</button>
+        <button type="button" class="ciyne-btn ciyne-btn--icon" aria-label="Account">A</button>
+      </div>
+    </section>
+
+    <section class="ciyne-qa__section" aria-labelledby="steps-heading">
+      <h2 id="steps-heading" class="ciyne-qa__section-title">Step progress</h2>
+      <p style="margin: 0 0 var(--space-4); color: var(--text-secondary); font-size: var(--font-size-sm);">Step 1 active (green accent — not pink)</p>
+      <div class="ciyne-qa__row" style="align-items: flex-start; flex-direction: column; gap: var(--space-6);">
+        <div>
+          <div class="ciyne-type-sample__label" style="margin-bottom: var(--space-2);">Step 1 of 3</div>
+          <div class="ciyne-step-progress" role="group" aria-label="Progress">
+            <span class="ciyne-step-progress__bar is-active" role="presentation"></span>
+            <span class="ciyne-step-progress__bar" role="presentation"></span>
+            <span class="ciyne-step-progress__bar" role="presentation"></span>
+          </div>
+        </div>
+        <div>
+          <div class="ciyne-type-sample__label" style="margin-bottom: var(--space-2);">Step 2 of 3</div>
+          <div class="ciyne-step-progress">
+            <span class="ciyne-step-progress__bar is-complete"></span>
+            <span class="ciyne-step-progress__bar is-active"></span>
+            <span class="ciyne-step-progress__bar"></span>
+          </div>
+        </div>
+        <div>
+          <div class="ciyne-type-sample__label" style="margin-bottom: var(--space-2);">Step 3 of 3</div>
+          <div class="ciyne-step-progress">
+            <span class="ciyne-step-progress__bar is-complete"></span>
+            <span class="ciyne-step-progress__bar is-complete"></span>
+            <span class="ciyne-step-progress__bar is-active"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ciyne-qa__section" aria-labelledby="brand-heading">
+      <h2 id="brand-heading" class="ciyne-qa__section-title">Brand mark</h2>
+      <div class="ciyne-qa__row">
+        <span class="ciyne-brand-mark ciyne-brand-mark--md" aria-hidden="true">
+          <svg class="ciyne-brand-mark__glyph" viewBox="0 0 24 24" fill="none"><path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </span>
+        <span class="ciyne-brand-mark ciyne-brand-mark--sm" aria-hidden="true">
+          <svg class="ciyne-brand-mark__glyph" viewBox="0 0 24 24" fill="none"><path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </span>
+        <span style="font-weight: var(--font-weight-bold); font-size: var(--font-size-md);">Ciyne</span>
+      </div>
+    </section>
+  </div>
+
+  <hr style="border: none; border-top: 1px solid var(--border); margin: var(--space-8) 0;" />
+
+  <!-- Full layout shell mock (Lönar structure) -->
+  <div class="ciyne-app">
+    <header class="ciyne-header">
+      <div class="ciyne-header__left">
+        <a href="#" class="ciyne-header__brand">
+          <span class="ciyne-brand-mark ciyne-brand-mark--md" aria-hidden="true">
+            <svg class="ciyne-brand-mark__glyph" viewBox="0 0 24 24" fill="none"><path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </span>
+          <span class="ciyne-header__brand-name">Ciyne</span>
+        </a>
+        <span class="ciyne-header__crumb">Create Invoice</span>
+      </div>
+      <div class="ciyne-header__actions">
+        <button type="button" class="ciyne-btn ciyne-btn--icon" aria-label="Account">A</button>
+        <button type="button" class="ciyne-btn ciyne-btn--secondary">Preview</button>
+        <button type="button" class="ciyne-btn ciyne-btn--primary">Continue</button>
+      </div>
+    </header>
+
+    <main class="ciyne-main">
+      <div class="ciyne-split">
+        <article class="ciyne-surface" aria-label="Invoice form">
+          <div class="ciyne-surface__header">
+            <h2 class="ciyne-surface__title">Create Invoice</h2>
+            <div class="ciyne-step-progress" aria-label="Step 1 of 3">
+              <span class="ciyne-step-progress__bar is-active"></span>
+              <span class="ciyne-step-progress__bar"></span>
+              <span class="ciyne-step-progress__bar"></span>
+            </div>
+          </div>
+          <div class="ciyne-placeholder-shell">
+            Form column — Step 1 fields will mount here in a later phase.
+          </div>
+          <footer class="ciyne-form-footer">
+            <button type="button" class="ciyne-btn ciyne-btn--primary is-disabled" disabled>Next</button>
+          </footer>
+        </article>
+
+        <article class="ciyne-surface ciyne-preview" aria-label="Invoice preview">
+          <div class="ciyne-preview__top">
+            <div class="ciyne-preview__logo-placeholder">
+              <div class="ciyne-preview__logo-placeholder-inner"></div>
+            </div>
+            <div class="ciyne-preview__id">#CIY-24A7B9QX1C</div>
+          </div>
+
+          <div class="ciyne-preview__meta">
+            <div>
+              <div class="ciyne-preview__meta-label">Invoice no</div>
+              <div class="ciyne-skeleton ciyne-skeleton--sm"></div>
+            </div>
+            <div>
+              <div class="ciyne-preview__meta-label">Date issued</div>
+              <div class="ciyne-skeleton ciyne-skeleton--sm"></div>
+            </div>
+            <div>
+              <div class="ciyne-preview__meta-label">Due date</div>
+              <div class="ciyne-skeleton ciyne-skeleton--sm"></div>
+            </div>
+          </div>
+
+          <div class="ciyne-preview__addresses">
+            <div>
+              <div class="ciyne-preview__section-label">From</div>
+              <div class="ciyne-skeleton-stack">
+                <div class="ciyne-skeleton ciyne-skeleton--md"></div>
+                <div class="ciyne-skeleton ciyne-skeleton--lg"></div>
+                <div class="ciyne-skeleton ciyne-skeleton--short"></div>
+              </div>
+            </div>
+            <div>
+              <div class="ciyne-preview__section-label">To</div>
+              <div class="ciyne-skeleton-stack">
+                <div class="ciyne-skeleton ciyne-skeleton--md"></div>
+                <div class="ciyne-skeleton ciyne-skeleton--lg"></div>
+                <div class="ciyne-skeleton ciyne-skeleton--short"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ciyne-preview__table">
+            <div class="ciyne-preview__table-head">
+              <span>Item</span>
+              <span>Quantity</span>
+              <span>Unit price</span>
+              <span>Amount</span>
+            </div>
+            <div class="ciyne-preview__table-row">
+              <div class="ciyne-skeleton ciyne-skeleton--lg"></div>
+              <div class="ciyne-skeleton ciyne-skeleton--sm"></div>
+              <div class="ciyne-skeleton ciyne-skeleton--sm"></div>
+              <div class="ciyne-skeleton ciyne-skeleton--sm"></div>
+            </div>
+            <div class="ciyne-preview__table-row">
+              <div class="ciyne-skeleton ciyne-skeleton--md"></div>
+              <div class="ciyne-skeleton ciyne-skeleton--sm"></div>
+              <div class="ciyne-skeleton ciyne-skeleton--sm"></div>
+              <div class="ciyne-skeleton ciyne-skeleton--sm"></div>
+            </div>
+          </div>
+
+          <div class="ciyne-preview__subtotal">
+            <span>Subtotal</span>
+            <div class="ciyne-skeleton ciyne-skeleton--sm" style="width: 72px;"></div>
+          </div>
+        </article>
+      </div>
+    </main>
+  </div>
+
+</body>
+</html>
