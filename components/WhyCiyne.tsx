@@ -1,4 +1,5 @@
 import { BadgeCheck, Droplet, Sparkles, Wallet } from 'lucide-react'
+import Reveal from '@/components/Reveal'
 
 const POINTS = [
   {
@@ -27,7 +28,7 @@ export default function WhyCiyne() {
   return (
     <section id="why" className="scroll-mt-6 bg-surface">
       <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
-        <div className="max-w-2xl">
+        <Reveal className="max-w-2xl">
           <span className="text-sm font-semibold text-accent-600">Why Ciyne</span>
           <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
             Built to get out of your way.
@@ -35,13 +36,13 @@ export default function WhyCiyne() {
           <p className="mt-3 text-base leading-relaxed text-[var(--text-secondary)]">
             Most signing tools want your email before they want to help. Ciyne just signs the PDF.
           </p>
-        </div>
+        </Reveal>
 
         <div className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-2">
-          {POINTS.map((p) => {
+          {POINTS.map((p, i) => {
             const Icon = p.icon
             return (
-              <div key={p.title} className="flex gap-4">
+              <Reveal key={p.title} delay={i * 100} className="flex gap-4">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
                   <Icon className="h-5 w-5" aria-hidden />
                 </span>
@@ -51,7 +52,7 @@ export default function WhyCiyne() {
                     {p.body}
                   </p>
                 </div>
-              </div>
+              </Reveal>
             )
           })}
         </div>

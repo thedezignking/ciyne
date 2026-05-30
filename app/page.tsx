@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { ArrowRight, Lock } from 'lucide-react'
+import Reveal from '@/components/Reveal'
 import LandingHero from '@/components/LandingHero'
 import HowItWorks from '@/components/HowItWorks'
 import WhyCiyne from '@/components/WhyCiyne'
@@ -67,7 +68,7 @@ export default function HomePage() {
         style={{ background: 'linear-gradient(180deg, #f6faf0 0%, var(--bg-page) 38%)' }}
       >
         <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
-          <div className="mx-auto mb-12 max-w-2xl text-center">
+          <Reveal className="mx-auto mb-12 max-w-2xl text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
               Sign now
@@ -78,7 +79,7 @@ export default function HomePage() {
             <p className="mx-auto mt-3 max-w-md text-base leading-relaxed text-[var(--text-secondary)]">
               Follow the three steps below. Start by dropping in your document.
             </p>
-          </div>
+          </Reveal>
 
           <div className="grid gap-6 lg:grid-cols-[260px_1fr] lg:gap-8">
             <aside className="lg:sticky lg:top-6 lg:self-start">

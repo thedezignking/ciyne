@@ -1,11 +1,12 @@
 import { ArrowRight, FileSignature } from 'lucide-react'
+import Reveal from '@/components/Reveal'
 
 export default function SiteFooter() {
   return (
     <footer className="border-t border-border bg-page">
       {/* Final CTA */}
       <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
-        <div
+        <Reveal
           className="relative overflow-hidden rounded-[28px] border border-black/5 px-8 py-12 text-center sm:py-16"
           style={{ background: 'var(--hero-mesh)' }}
         >
@@ -22,7 +23,7 @@ export default function SiteFooter() {
             Sign a PDF now
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </a>
-        </div>
+        </Reveal>
       </div>
 
       {/* Bottom bar */}
