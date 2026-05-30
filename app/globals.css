@@ -15,3 +15,70 @@ body {
     box-shadow: var(--focus-ring);
   }
 }
+
+/* ---- Landing motion ---- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes float-doc {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--doc-rot, 0deg));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--doc-rot, 0deg));
+  }
+}
+
+@keyframes draw-sig {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-rise {
+  opacity: 0;
+  animation: rise 0.9s var(--ease-out-quint) forwards;
+}
+
+.animate-fade {
+  opacity: 0;
+  animation: fade 1.1s var(--ease-out-expo) forwards;
+}
+
+.float-doc {
+  animation: float-doc 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-fade {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .float-doc {
+    animation: none;
+  }
+  .sig-path {
+    stroke-dashoffset: 0 !important;
+    animation: none !important;
+  }
+}
