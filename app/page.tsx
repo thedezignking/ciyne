@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { ArrowRight, Lock } from 'lucide-react'
 import LandingHero from '@/components/LandingHero'
 import HowItWorks from '@/components/HowItWorks'
 import WhyCiyne from '@/components/WhyCiyne'
@@ -60,21 +61,31 @@ export default function HomePage() {
       <HowItWorks />
 
       {/* The tool */}
-      <section id="sign" className="scroll-mt-4 bg-page">
-        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
-          <div className="mx-auto mb-10 max-w-2xl text-center">
-            <span className="text-sm font-semibold text-accent-600">Sign now</span>
-            <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+      <section
+        id="sign"
+        className="scroll-mt-4 border-y border-black/5"
+        style={{ background: 'linear-gradient(180deg, #f6faf0 0%, var(--bg-page) 38%)' }}
+      >
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
+          <div className="mx-auto mb-12 max-w-2xl text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] backdrop-blur">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
+              Sign now
+            </span>
+            <h2 className="mt-4 text-3xl font-extrabold tracking-[-0.02em] text-[var(--text-primary)] sm:text-4xl">
               Sign your PDF
             </h2>
-            <p className="mt-3 text-base leading-relaxed text-[var(--text-secondary)]">
-              Everything runs right here. Start by uploading your document below.
+            <p className="mx-auto mt-3 max-w-md text-base leading-relaxed text-[var(--text-secondary)]">
+              Follow the three steps below. Start by dropping in your document.
             </p>
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
+          <div className="grid gap-6 lg:grid-cols-[260px_1fr] lg:gap-8">
             <aside className="lg:sticky lg:top-6 lg:self-start">
-              <div className="rounded-2xl border border-border bg-surface p-4" style={{ boxShadow: 'var(--shadow-card)' }}>
+              <div
+                className="rounded-3xl border border-black/5 bg-surface p-4"
+                style={{ boxShadow: 'var(--shadow-float)' }}
+              >
                 <StepNav
                   current={step}
                   maxReached={maxReached}
@@ -84,75 +95,117 @@ export default function HomePage() {
                     }
                   }}
                 />
+                <div className="mt-3 flex items-center gap-2 rounded-2xl bg-accent-50 px-3.5 py-3 text-xs font-medium text-accent-600">
+                  <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  <span>No account. No watermark. Full quality.</span>
+                </div>
               </div>
             </aside>
 
-            <div className="space-y-6">
+            <div>
               {step === 1 && (
-                <section className="rounded-2xl border border-border bg-surface p-6 sm:p-8" style={{ boxShadow: 'var(--shadow-card)' }}>
-                  <h3 className="text-xl font-bold text-primary">Upload your PDF</h3>
-                  <p className="mt-2 text-sm text-secondary">
-                    We render the first page so you can place your signature exactly where you want.
-                  </p>
-                  <div className="mt-6">
-                    <PdfUploader file={pdfFile} onFile={handlePdf} />
+                <section
+                  key="step1"
+                  className="animate-rise overflow-hidden rounded-3xl border border-black/5 bg-surface"
+                  style={{ boxShadow: 'var(--shadow-float)' }}
+                >
+                  <div className="border-b border-border/70 px-6 pb-5 pt-6 sm:px-8">
+                    <span className="text-xs font-bold uppercase tracking-wide text-accent-600">
+                      Step 1 of 3
+                    </span>
+                    <h3 className="mt-1.5 text-2xl font-extrabold tracking-[-0.02em] text-primary">
+                      Upload your PDF
+                    </h3>
+                    <p className="mt-1.5 text-sm text-secondary">
+                      We render the first page so you can place your signature exactly where you want.
+                    </p>
                   </div>
-                  {pdfFile && (
-                    <div className="mt-6 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => goToStep(2)}
-                        className="focus-accent rounded-md bg-[var(--btn-primary-bg)] px-5 py-2.5 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)]"
-                      >
-                        Continue
-                      </button>
-                    </div>
-                  )}
+                  <div className="p-6 sm:p-8">
+                    <PdfUploader file={pdfFile} onFile={handlePdf} />
+                    {pdfFile && (
+                      <div className="mt-6 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => goToStep(2)}
+                          className="focus-accent group inline-flex items-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-6 py-3 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)]"
+                        >
+                          Continue
+                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </section>
               )}
 
               {step === 2 && pdfFile && (
-                <section className="rounded-2xl border border-border bg-surface p-6 sm:p-8" style={{ boxShadow: 'var(--shadow-card)' }}>
-                  <h3 className="text-xl font-bold text-primary">Add your signature</h3>
-                  <p className="mt-2 text-sm text-secondary">
-                    Photo of your handwritten signature on white paper works best.
-                  </p>
-                  <div className="mt-6 space-y-6">
+                <section
+                  key="step2"
+                  className="animate-rise overflow-hidden rounded-3xl border border-black/5 bg-surface"
+                  style={{ boxShadow: 'var(--shadow-float)' }}
+                >
+                  <div className="border-b border-border/70 px-6 pb-5 pt-6 sm:px-8">
+                    <span className="text-xs font-bold uppercase tracking-wide text-accent-600">
+                      Step 2 of 3
+                    </span>
+                    <h3 className="mt-1.5 text-2xl font-extrabold tracking-[-0.02em] text-primary">
+                      Add your signature
+                    </h3>
+                    <p className="mt-1.5 text-sm text-secondary">
+                      A photo of your handwritten signature on white paper works best.
+                    </p>
+                  </div>
+                  <div className="space-y-6 p-6 sm:p-8">
                     <SignatureUploader onFile={handleSignatureSource} />
                     {signatureSource && (
                       <SignatureCleaner sourceFile={signatureSource} onCleaned={handleCleaned} />
                     )}
+                    {signatureDataUrl && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => goToStep(3)}
+                          className="focus-accent group inline-flex items-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-6 py-3 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)]"
+                        >
+                          Continue to placement
+                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {signatureDataUrl && (
-                    <div className="mt-6 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => goToStep(3)}
-                        className="focus-accent rounded-md bg-[var(--btn-primary-bg)] px-5 py-2.5 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)]"
-                      >
-                        Continue to placement
-                      </button>
-                    </div>
-                  )}
                 </section>
               )}
 
               {step === 3 && pdfFile && signatureDataUrl && (
-                <section className="rounded-2xl border border-border bg-surface p-6 sm:p-8" style={{ boxShadow: 'var(--shadow-card)' }}>
-                  <h3 className="text-xl font-bold text-primary">Place your signature</h3>
-                  <div className="mt-6">
+                <section
+                  key="step3"
+                  className="animate-rise overflow-hidden rounded-3xl border border-black/5 bg-surface"
+                  style={{ boxShadow: 'var(--shadow-float)' }}
+                >
+                  <div className="border-b border-border/70 px-6 pb-5 pt-6 sm:px-8">
+                    <span className="text-xs font-bold uppercase tracking-wide text-accent-600">
+                      Step 3 of 3
+                    </span>
+                    <h3 className="mt-1.5 text-2xl font-extrabold tracking-[-0.02em] text-primary">
+                      Place &amp; download
+                    </h3>
+                    <p className="mt-1.5 text-sm text-secondary">
+                      Drag your signature into position, then download the signed PDF.
+                    </p>
+                  </div>
+                  <div className="p-6 sm:p-8">
                     <PreviewWorkspace
                       pdfFile={pdfFile}
                       signatureDataUrl={signatureDataUrl}
                       onPlacement={handlePlacement}
                     />
-                  </div>
-                  <div className="mt-8 border-t border-border pt-6">
-                    <DownloadButton
-                      pdfFile={pdfFile}
-                      payload={processPayload}
-                      disabled={!placement}
-                    />
+                    <div className="mt-8 border-t border-border pt-6">
+                      <DownloadButton
+                        pdfFile={pdfFile}
+                        payload={processPayload}
+                        disabled={!placement}
+                      />
+                    </div>
                   </div>
                 </section>
               )}

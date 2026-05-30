@@ -33,7 +33,6 @@ export default function DocumentPreview({ pdfFile, onReady, overlay }: DocumentP
         canvas.style.width = '100%'
         canvas.style.height = 'auto'
         canvas.style.display = 'block'
-        canvas.style.borderRadius = '8px'
         container.appendChild(canvas)
         canvasRef.current = canvas
 
@@ -71,24 +70,38 @@ export default function DocumentPreview({ pdfFile, onReady, overlay }: DocumentP
   }, [loading])
 
   return (
-    <div className="relative">
-      {loading && (
-        <p className="py-12 text-center text-sm text-secondary">Rendering document…</p>
-      )}
-      {error && (
-        <p className="py-12 text-center text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      )}
-      <div
-        ref={containerRef}
-        className="overflow-hidden rounded-lg border border-border bg-surface"
-      />
-      {dimensions && overlay && (
-        <div className="pointer-events-none absolute inset-0">
-          {overlay(dimensions.width, dimensions.height)}
+    <div
+      className="overflow-hidden rounded-2xl border border-black/5 bg-surface"
+      style={{ boxShadow: 'var(--shadow-doc)' }}
+    >
+      {/* Window chrome — echoes the hero document cards */}
+      <div className="flex items-center gap-2 border-b border-border/70 bg-page/60 px-4 py-2.5">
+        <span className="flex gap-1.5" aria-hidden>
+          <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+        </span>
+        <span className="ml-1 truncate text-[11px] font-medium text-muted">{pdfFile.name}</span>
+      </div>
+
+      <div className="bg-[var(--bg-page)] p-3 sm:p-4">
+        {loading && (
+          <p className="py-12 text-center text-sm text-secondary">Rendering document…</p>
+        )}
+        {error && (
+          <p className="py-12 text-center text-sm text-red-600" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="relative">
+          <div ref={containerRef} className="overflow-hidden rounded-lg shadow-sm" />
+          {dimensions && overlay && (
+            <div className="pointer-events-none absolute inset-0">
+              {overlay(dimensions.width, dimensions.height)}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

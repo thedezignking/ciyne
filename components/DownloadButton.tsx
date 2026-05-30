@@ -58,7 +58,7 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
         type="button"
         disabled={disabled || !payload || loading}
         onClick={() => void handleDownload()}
-        className="focus-accent inline-flex w-full items-center justify-center gap-2 rounded-md bg-[var(--btn-primary-bg)] px-6 py-3 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+        className="focus-accent inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-7 py-3.5 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
         <Download className="h-4 w-4" aria-hidden />
         {loading ? 'Applying signature…' : 'Apply signature & download'}
