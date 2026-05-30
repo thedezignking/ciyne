@@ -50,19 +50,12 @@ export default function PreviewWorkspace({
         onReady={handleCanvasReady}
         onPageChange={setPageIndex}
         overlay={(width, height) => (
-          <div
-            className="pointer-events-none absolute left-0 top-0"
-            style={{ width, height }}
-          >
-            <div className="pointer-events-auto absolute left-0 top-0" style={{ width, height }}>
-              <SignaturePlacer
-                signatureDataUrl={signatureDataUrl}
-                canvasWidth={width}
-                canvasHeight={height}
-                onPlacementChange={handlePlacementChange}
-              />
-            </div>
-          </div>
+          <SignaturePlacer
+            signatureDataUrl={signatureDataUrl}
+            canvasWidth={width}
+            canvasHeight={height}
+            onPlacementChange={handlePlacementChange}
+          />
         )}
       />
     </div>

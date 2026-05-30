@@ -134,8 +134,8 @@ export default function SignaturePlacer({
   return (
     <div
       ref={containerRef}
-      className="absolute left-0 top-0 touch-none"
-      style={{ width: canvasWidth, height: canvasHeight }}
+      className="absolute left-0 top-0 pointer-events-auto"
+      style={{ width: canvasWidth, height: canvasHeight, touchAction: 'none' }}
       aria-label="Drag and resize your signature"
     >
       <div
@@ -145,6 +145,7 @@ export default function SignaturePlacer({
           top: rect.y,
           width: rect.width,
           height: rect.height,
+          touchAction: 'none',
         }}
         onPointerDown={(e) => startDrag(e, 'move')}
       >
@@ -158,6 +159,7 @@ export default function SignaturePlacer({
         <div
           role="presentation"
           className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 cursor-se-resize items-center justify-center rounded-full border-2 border-accent-500 bg-white shadow-sm sm:-bottom-0 sm:-right-0 sm:h-4 sm:w-4 sm:rounded-sm"
+          style={{ touchAction: 'none' }}
           onPointerDown={(e) => startDrag(e, 'resize')}
         >
           <span className="block h-2 w-2 rounded-sm bg-accent-500 sm:hidden" />

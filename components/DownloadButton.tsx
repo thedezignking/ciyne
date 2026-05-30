@@ -42,13 +42,9 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
       const filename =
         (pdfFile.name.replace(/\.pdf$/i, '') || 'signed') + '-signed.pdf'
 
-      // On mobile (esp. iOS Safari) the anchor-download trick is unreliable:
-      // the `download` attribute is ignored for blob URLs and a programmatic
-      // click after an await is outside the original tap gesture. The Web
-      // Share API is the supported path — it lets the user save to Files or
-      // share the PDF. Fall back to anchor download on desktop.
       const file = new File([blob], filename, { type: 'application/pdf' })
 
+      // 1. Try Web Share API (works on mobile with HTTPS)
       if (
         typeof navigator !== 'undefined' &&
         typeof navigator.canShare === 'function' &&
@@ -58,25 +54,28 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
           await navigator.share({ files: [file], title: filename })
           return
         } catch (shareErr) {
-          // User cancelled the share sheet — not an error, just stop.
-          if (shareErr instanceof DOMException && shareErr.name === 'AbortError') {
-            return
-          }
-          // Otherwise fall through to the anchor/open fallback below.
+          if (shareErr instanceof DOMException && shareErr.name === 'AbortError') return
         }
       }
 
+      // 2. Anchor download — works on desktop, some Android browsers
       const url = URL.createObjectURL(blob)
       const link = linkRef.current
       if (link) {
         link.href = url
         link.download = filename
         link.click()
-      } else {
+      }
+
+      // 3. Fallback: open in new tab (iOS Safari HTTP, older browsers)
+      // iOS ignores the download attr on blob URLs, so opening in a new tab
+      // lets the user use the native share/save from the PDF viewer.
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+      if (isMobile) {
         window.open(url, '_blank')
       }
 
-      setTimeout(() => URL.revokeObjectURL(url), 5000)
+      setTimeout(() => URL.revokeObjectURL(url), 30_000)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -86,9 +85,13 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
 
   return (
     <div className="space-y-2">
-      {/* Hidden anchor for reliable mobile downloads */}
       {/* eslint-disable-next-line jsx-a11y/anchor-has-content */}
-      <a ref={linkRef} className="hidden" aria-hidden />
+      <a
+        ref={linkRef}
+        aria-hidden
+        tabIndex={-1}
+        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}
+      />
       <button
         type="button"
         disabled={disabled || !payload || loading}
