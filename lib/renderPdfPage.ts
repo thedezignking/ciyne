@@ -33,7 +33,7 @@ export async function renderPdfPage(
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas not supported')
 
-  await page.render({ canvasContext: ctx, viewport, canvas }).promise
+  await page.render({ canvasContext: ctx, viewport }).promise
 
   return {
     canvas,
