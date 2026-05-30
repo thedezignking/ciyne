@@ -1,69 +1,94 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { renderPdfPage } from '@/lib/renderPdfPage'
 
 type DocumentPreviewProps = {
   pdfFile: File
-  onReady: (canvas: HTMLCanvasElement, width: number, height: number) => void
-  overlay?: (width: number, height: number) => ReactNode
+  onReady?: () => void
+  overlay?: (width: number, height: number) => React.ReactNode
 }
 
-export default function DocumentPreview({
-  pdfFile,
-  onReady,
-  overlay,
-}: DocumentPreviewProps) {
-  const canvasHostRef = useRef<HTMLDivElement>(null)
+export default function DocumentPreview({ pdfFile, onReady, overlay }: DocumentPreviewProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  // Displayed (CSS-pixel) size of the rendered canvas — the coordinate space the
+  // signature overlay must use so what the user places matches what gets embedded.
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [dims, setDims] = useState<{ width: number; height: number } | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
+    setError(null)
 
-    async function load() {
-      setLoading(true)
-      setError(null)
-      setDims(null)
-      try {
-        const { canvas, width, height } = await renderPdfPage(pdfFile, 0)
+    renderPdfPage(pdfFile, 0)
+      .then(({ canvas }) => {
         if (cancelled) return
-        const host = canvasHostRef.current
-        if (!host) return
-        host.replaceChildren(canvas)
-        canvas.className = 'block max-w-full h-auto'
-        setDims({ width, height })
-        onReady(canvas, width, height)
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Failed to render PDF')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
+        const container = containerRef.current
+        if (!container) return
 
-    void load()
+        container.innerHTML = ''
+        canvas.style.width = '100%'
+        canvas.style.height = 'auto'
+        canvas.style.display = 'block'
+        canvas.style.borderRadius = '8px'
+        container.appendChild(canvas)
+        canvasRef.current = canvas
+
+        setLoading(false)
+        onReady?.()
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setError(err instanceof Error ? err.message : 'Failed to render PDF')
+        setLoading(false)
+      })
+
     return () => {
       cancelled = true
     }
   }, [pdfFile, onReady])
 
+  // Track the canvas's on-screen size and keep it in sync on resize.
+  useEffect(() => {
+    if (loading) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const measure = () => {
+      const rect = canvas.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        setDimensions({ width: rect.width, height: rect.height })
+      }
+    }
+
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [loading])
+
   return (
-    <div className="overflow-auto rounded-lg border border-border bg-muted/30 p-4">
-      {loading && <p className="py-12 text-center text-sm text-secondary">Loading document…</p>}
+    <div className="relative">
+      {loading && (
+        <p className="py-12 text-center text-sm text-secondary">Rendering document…</p>
+      )}
       {error && (
         <p className="py-12 text-center text-sm text-red-600" role="alert">
           {error}
         </p>
       )}
-      <div className="flex justify-center">
-        <div className="relative inline-block leading-none">
-          <div ref={canvasHostRef} />
-          {dims && overlay?.(dims.width, dims.height)}
+      <div
+        ref={containerRef}
+        className="overflow-hidden rounded-lg border border-border bg-surface"
+      />
+      {dimensions && overlay && (
+        <div className="pointer-events-none absolute inset-0">
+          {overlay(dimensions.width, dimensions.height)}
         </div>
-      </div>
+      )}
     </div>
   )
 }
