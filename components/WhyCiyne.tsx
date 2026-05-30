@@ -26,7 +26,7 @@ const POINTS = [
 
 export default function WhyCiyne() {
   return (
-    <section id="why" className="scroll-mt-6">
+    <section id="why" className="scroll-mt-6 border-t border-border/50">
       <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
         <div className="grid gap-14 lg:grid-cols-[1fr_1.4fr] lg:gap-20">
           {/* Left — heading */}
@@ -45,16 +45,16 @@ export default function WhyCiyne() {
           </Reveal>
 
           {/* Right — 2x2 grid */}
-          <div className="grid gap-px overflow-hidden rounded-2xl border border-border/70 bg-border/40 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2">
             {POINTS.map((p, i) => {
               const Icon = p.icon
               return (
                 <Reveal key={p.title} delay={i * 80}>
-                  <div className="group flex h-full flex-col bg-surface p-7 transition-colors duration-200 hover:bg-accent-50/20">
-                    <span className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-surface text-accent-600 transition-all duration-200 group-hover:border-accent-500/40 group-hover:bg-accent-50">
-                      <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+                  <div className="group h-full rounded-2xl border border-border/70 bg-surface p-6 transition-all duration-200 hover:border-accent-500/40 hover:shadow-sm">
+                    <span className="flex h-[54px] w-[54px] items-center justify-center rounded-2xl border border-border bg-surface text-accent-600 transition-all duration-200 group-hover:border-accent-500/50 group-hover:bg-accent-50">
+                      <Icon className="h-[22px] w-[22px]" strokeWidth={1.75} aria-hidden />
                     </span>
-                    <h3 className="text-[15px] font-bold text-[var(--text-primary)]">
+                    <h3 className="mt-5 text-[15px] font-bold text-[var(--text-primary)]">
                       {p.title}
                     </h3>
                     <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-secondary)]">
