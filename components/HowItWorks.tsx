@@ -21,49 +21,63 @@ const STEPS = [
 
 export default function HowItWorks() {
   return (
-    <section id="how" className="mx-auto max-w-6xl scroll-mt-6 px-5 py-24 sm:px-8">
-      <Reveal>
-        <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
-          How it works
-        </h2>
-        <p className="mt-3 max-w-lg text-base leading-relaxed text-[var(--text-secondary)]">
-          Three steps. No account, no setup, no tutorial. Just upload, sign, download.
-        </p>
-      </Reveal>
+    <section
+      id="how"
+      className="scroll-mt-6"
+      style={{ background: 'linear-gradient(180deg, var(--bg-page) 0%, #f3f4f6 100%)' }}
+    >
+      <div className="mx-auto max-w-5xl px-5 py-24 sm:px-8">
+        {/* Centered heading */}
+        <Reveal className="text-center">
+          <span className="text-sm font-semibold tracking-wide text-accent-600">
+            How it works
+          </span>
+          <h2 className="mx-auto mt-3 max-w-lg text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+            Three steps to{' '}
+            <span className="italic text-accent-600">signing your PDF</span>
+          </h2>
+        </Reveal>
 
-      <div className="mt-16">
-        {/* Timeline connector — desktop only */}
-        <div className="relative hidden sm:block">
-          <div className="absolute left-0 right-0 top-5 h-px bg-border" aria-hidden />
-        </div>
+        {/* Timeline */}
+        <div className="relative mt-20">
+          {/* Connector line — sits behind the circles, desktop only */}
+          <div
+            className="pointer-events-none absolute left-[16.67%] right-[16.67%] top-[44px] hidden h-px sm:block"
+            style={{ background: 'linear-gradient(90deg, var(--accent-400), var(--accent-500))' }}
+            aria-hidden
+          />
 
-        <ol className="relative grid gap-12 sm:grid-cols-3 sm:gap-8">
-          {STEPS.map((step, i) => {
-            const Icon = step.icon
-            return (
-              <Reveal as="li" key={step.title} delay={i * 120}>
-                <div className="group">
-                  {/* Icon + step indicator */}
-                  <div className="relative mb-6 flex items-center gap-3">
-                    <span className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-accent-600 transition-colors duration-200 group-hover:border-accent-500 group-hover:bg-accent-50">
-                      <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />
+          <ol className="relative grid grid-cols-1 gap-14 sm:grid-cols-3 sm:gap-8">
+            {STEPS.map((step, i) => {
+              const Icon = step.icon
+              return (
+                <Reveal as="li" key={step.title} delay={i * 150} className="text-center">
+                  <div className="group flex flex-col items-center">
+                    {/* Large circle icon */}
+                    <span className="relative z-10 flex h-[88px] w-[88px] items-center justify-center rounded-full border border-accent-500/30 bg-surface text-accent-600 shadow-sm transition-all duration-300 group-hover:border-accent-500 group-hover:shadow-md">
+                      <Icon className="h-7 w-7" strokeWidth={1.5} aria-hidden />
                     </span>
-                    <span className="text-sm font-semibold tabular-nums text-[var(--text-muted)]">
-                      {i + 1} / 3
+
+                    {/* Step label */}
+                    <span className="mt-6 text-xs font-bold uppercase tracking-widest text-accent-600">
+                      Step {String(i + 1).padStart(2, '0')}
                     </span>
+
+                    {/* Title */}
+                    <h3 className="mt-2 text-lg font-bold text-[var(--text-primary)]">
+                      {step.title}
+                    </h3>
+
+                    {/* Description */}
+                    <p className="mx-auto mt-2 max-w-[280px] text-sm leading-relaxed text-[var(--text-secondary)]">
+                      {step.body}
+                    </p>
                   </div>
-
-                  <h3 className="text-lg font-bold text-[var(--text-primary)]">
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
-                    {step.body}
-                  </p>
-                </div>
-              </Reveal>
-            )
-          })}
-        </ol>
+                </Reveal>
+              )
+            })}
+          </ol>
+        </div>
       </div>
     </section>
   )
