@@ -138,7 +138,7 @@ export default function DocumentPreview({
         <div className="relative">
           <div ref={containerRef} className="overflow-hidden rounded-lg shadow-sm" />
           {dimensions && overlay && (
-            <div className="pointer-events-none absolute inset-0">
+            <div className="absolute inset-0">
               {overlay(dimensions.width, dimensions.height)}
             </div>
           )}
