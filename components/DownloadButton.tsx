@@ -39,10 +39,34 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
       }
 
       const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
       const filename =
-        pdfFile.name.replace(/\.pdf$/i, '') + '-signed.pdf' || 'signed.pdf'
+        (pdfFile.name.replace(/\.pdf$/i, '') || 'signed') + '-signed.pdf'
 
+      // On mobile (esp. iOS Safari) the anchor-download trick is unreliable:
+      // the `download` attribute is ignored for blob URLs and a programmatic
+      // click after an await is outside the original tap gesture. The Web
+      // Share API is the supported path — it lets the user save to Files or
+      // share the PDF. Fall back to anchor download on desktop.
+      const file = new File([blob], filename, { type: 'application/pdf' })
+
+      if (
+        typeof navigator !== 'undefined' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [file] })
+      ) {
+        try {
+          await navigator.share({ files: [file], title: filename })
+          return
+        } catch (shareErr) {
+          // User cancelled the share sheet — not an error, just stop.
+          if (shareErr instanceof DOMException && shareErr.name === 'AbortError') {
+            return
+          }
+          // Otherwise fall through to the anchor/open fallback below.
+        }
+      }
+
+      const url = URL.createObjectURL(blob)
       const link = linkRef.current
       if (link) {
         link.href = url
