@@ -10,14 +10,15 @@ type SignatureCleanerProps = {
 }
 
 export default function SignatureCleaner({ sourceFile, onCleaned }: SignatureCleanerProps) {
-  const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD)
+  // 0–100 sensitivity; 50 = automatic (Otsu + flat-field) baseline.
+  const [sensitivity, setSensitivity] = useState(DEFAULT_THRESHOLD)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
 
   const process = useCallback(async () => {
     setProcessing(true)
     try {
-      const blob = await removeBackground(sourceFile, threshold)
+      const blob = await removeBackground(sourceFile, sensitivity)
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = () => resolve(reader.result as string)
@@ -29,7 +30,7 @@ export default function SignatureCleaner({ sourceFile, onCleaned }: SignatureCle
     } finally {
       setProcessing(false)
     }
-  }, [sourceFile, threshold, onCleaned])
+  }, [sourceFile, sensitivity, onCleaned])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -46,7 +47,9 @@ export default function SignatureCleaner({ sourceFile, onCleaned }: SignatureCle
         </span>
         <div>
           <p className="text-sm font-bold text-primary">Background removed</p>
-          <p className="text-xs text-secondary">We cleared the paper behind your signature.</p>
+          <p className="text-xs text-secondary">
+            We auto-corrected shadows and cleared the paper behind your signature.
+          </p>
         </div>
       </div>
 
@@ -66,21 +69,22 @@ export default function SignatureCleaner({ sourceFile, onCleaned }: SignatureCle
 
       {/* Fine-tune */}
       <div className="mt-4">
-        <label className="flex items-center gap-3 text-sm">
-          <span className="shrink-0 font-medium text-secondary">Fine-tune</span>
-          <input
-            type="range"
-            min={180}
-            max={250}
-            value={threshold}
-            onChange={(e) => setThreshold(Number(e.target.value))}
-            className="h-1.5 flex-1 cursor-pointer accent-accent-500"
-            aria-label="Background removal threshold"
-          />
-          <span className="w-9 text-right font-semibold tabular-nums text-primary">{threshold}</span>
-        </label>
+        <div className="mb-1.5 flex items-center justify-between text-xs">
+          <span className="font-medium text-secondary">Keep more</span>
+          <span className="font-medium text-secondary">Remove more</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={sensitivity}
+          onChange={(e) => setSensitivity(Number(e.target.value))}
+          className="h-1.5 w-full cursor-pointer accent-accent-500"
+          aria-label="Background removal sensitivity"
+        />
         <p className="mt-2 text-xs text-muted">
-          Slide right if signature edges get cut off, left if background remains.
+          Auto-tuned for you. Drag left if parts of your signature disappear, right if any
+          background remains.
         </p>
       </div>
     </div>

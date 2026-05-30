@@ -19,7 +19,11 @@ function Logo() {
   )
 }
 
-export default function LandingHero() {
+type LandingHeroProps = {
+  onStart: () => void
+}
+
+export default function LandingHero({ onStart }: LandingHeroProps) {
   return (
     <section id="top" className="px-3 pt-3 sm:px-4 sm:pt-4">
       <div
@@ -52,12 +56,13 @@ export default function LandingHero() {
             >
               Why Ciyne
             </a>
-            <a
-              href="#sign"
+            <button
+              type="button"
+              onClick={onStart}
               className="focus-accent rounded-full bg-[#1a2332] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#0f1722]"
             >
               Sign a PDF
-            </a>
+            </button>
           </nav>
         </header>
 
@@ -90,13 +95,14 @@ export default function LandingHero() {
               className="animate-rise mt-8 flex flex-wrap items-center gap-3"
               style={{ animationDelay: '0.25s' }}
             >
-              <a
-                href="#sign"
+              <button
+                type="button"
+                onClick={onStart}
                 className="focus-accent group inline-flex items-center gap-2 rounded-full bg-[#1a2332] px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#0f1722]"
               >
                 Sign a PDF now
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </a>
+              </button>
               <a
                 href="#how"
                 className="focus-accent inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/60 px-6 py-3.5 text-sm font-semibold text-[var(--text-primary)] backdrop-blur transition-colors hover:bg-white"

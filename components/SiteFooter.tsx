@@ -1,7 +1,13 @@
+'use client'
+
 import { ArrowRight, FileSignature } from 'lucide-react'
 import Reveal from '@/components/Reveal'
 
-export default function SiteFooter() {
+type SiteFooterProps = {
+  onStart: () => void
+}
+
+export default function SiteFooter({ onStart }: SiteFooterProps) {
   return (
     <footer className="border-t border-border bg-page">
       {/* Final CTA */}
@@ -16,13 +22,14 @@ export default function SiteFooter() {
           <p className="mx-auto mt-3 max-w-md text-base text-[var(--text-secondary)]">
             No account, no watermark, no waiting. It takes about a minute.
           </p>
-          <a
-            href="#sign"
+          <button
+            type="button"
+            onClick={onStart}
             className="focus-accent group mt-7 inline-flex items-center gap-2 rounded-full bg-[#1a2332] px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#0f1722]"
           >
             Sign a PDF now
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </a>
+          </button>
         </Reveal>
       </div>
 
