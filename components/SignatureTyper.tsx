@@ -16,10 +16,15 @@ const FONTS = [
 
 const INK = '#1a2332'
 
-function resolveCssVar(cssVar: string): string {
-  if (typeof window === 'undefined') return cssVar
-  const raw = cssVar.replace(/^var\(/, '').replace(/\)$/, '')
-  return getComputedStyle(document.documentElement).getPropertyValue(raw).trim() || cssVar
+function resolveFont(cssVar: string): string {
+  if (typeof window === 'undefined') return 'sans-serif'
+  const prop = cssVar.replace(/^var\(/, '').replace(/\)$/, '')
+  // Next.js sets font CSS variables on <body> via className, not on :root
+  const fromBody = getComputedStyle(document.body).getPropertyValue(prop).trim()
+  if (fromBody) return fromBody
+  const fromRoot = getComputedStyle(document.documentElement).getPropertyValue(prop).trim()
+  if (fromRoot) return fromRoot
+  return 'sans-serif'
 }
 
 export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
@@ -31,10 +36,10 @@ export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
     const value = text.trim()
     if (!value) return
 
-    const fontPx = 160
-    const pad = 50
-    const resolvedFamily = resolveCssVar(font.cssVar)
-    const fontSpec = `${font.weight} ${fontPx}px ${resolvedFamily}`
+    const fontPx = 200
+    const pad = 60
+    const family = resolveFont(font.cssVar)
+    const fontSpec = `${font.weight} ${fontPx}px ${family}`
 
     try {
       await document.fonts.load(fontSpec, value)
@@ -42,23 +47,29 @@ export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
       /* fall through */
     }
 
-    const measure = document.createElement('canvas').getContext('2d')!
-    measure.font = fontSpec
-    const textW = Math.ceil(measure.measureText(value).width)
+    // Measure at 1x to get logical dimensions
+    const measureCtx = document.createElement('canvas').getContext('2d')!
+    measureCtx.font = fontSpec
+    const metrics = measureCtx.measureText(value)
+    const textW = Math.ceil(metrics.width)
 
-    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 3) : 1
+    // Render at high DPR for crisp output
+    const dpr = Math.min(window.devicePixelRatio || 1, 3)
+    const logicalW = textW + pad * 2
+    const logicalH = Math.ceil(fontPx * 2)
+
     const canvas = document.createElement('canvas')
-    canvas.width = (textW + pad * 2) * dpr
-    canvas.height = Math.ceil(fontPx * 1.8) * dpr
+    canvas.width = logicalW * dpr
+    canvas.height = logicalH * dpr
     const ctx = canvas.getContext('2d')!
     ctx.scale(dpr, dpr)
     ctx.font = fontSpec
     ctx.fillStyle = INK
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'left'
-    ctx.fillText(value, pad, Math.ceil(fontPx * 1.8) / 2)
+    ctx.fillText(value, pad, logicalH / 2)
 
-    const dataUrl = trimToDataUrl(canvas)
+    const dataUrl = trimToDataUrl(canvas, Math.round(16 * dpr))
     if (dataUrl) onSignature(dataUrl)
   }
 
@@ -74,7 +85,6 @@ export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
         aria-label="Type your signature"
       />
 
-      {/* Style picker with live previews */}
       <div className="grid grid-cols-3 gap-2">
         {FONTS.map((f) => {
           const active = f.id === fontId
