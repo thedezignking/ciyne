@@ -1,19 +1,30 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { renderPdfPage } from '@/lib/renderPdfPage'
 
 type DocumentPreviewProps = {
   pdfFile: File
+  pageIndex: number
+  pageCount: number | null
+  onPageCountKnown?: (count: number) => void
   onReady?: () => void
   overlay?: (width: number, height: number) => React.ReactNode
+  onPageChange?: (page: number) => void
 }
 
-export default function DocumentPreview({ pdfFile, onReady, overlay }: DocumentPreviewProps) {
+export default function DocumentPreview({
+  pdfFile,
+  pageIndex,
+  pageCount,
+  onPageCountKnown,
+  onReady,
+  overlay,
+  onPageChange,
+}: DocumentPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  // Displayed (CSS-pixel) size of the rendered canvas — the coordinate space the
-  // signature overlay must use so what the user places matches what gets embedded.
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -23,8 +34,8 @@ export default function DocumentPreview({ pdfFile, onReady, overlay }: DocumentP
     setLoading(true)
     setError(null)
 
-    renderPdfPage(pdfFile, 0)
-      .then(({ canvas }) => {
+    renderPdfPage(pdfFile, pageIndex)
+      .then(({ canvas, pageCount: count }) => {
         if (cancelled) return
         const container = containerRef.current
         if (!container) return
@@ -36,6 +47,7 @@ export default function DocumentPreview({ pdfFile, onReady, overlay }: DocumentP
         container.appendChild(canvas)
         canvasRef.current = canvas
 
+        onPageCountKnown?.(count)
         setLoading(false)
         onReady?.()
       })
@@ -48,9 +60,8 @@ export default function DocumentPreview({ pdfFile, onReady, overlay }: DocumentP
     return () => {
       cancelled = true
     }
-  }, [pdfFile, onReady])
+  }, [pdfFile, pageIndex, onReady, onPageCountKnown])
 
-  // Track the canvas's on-screen size and keep it in sync on resize.
   useEffect(() => {
     if (loading) return
     const canvas = canvasRef.current
@@ -69,19 +80,50 @@ export default function DocumentPreview({ pdfFile, onReady, overlay }: DocumentP
     return () => observer.disconnect()
   }, [loading])
 
+  const canPrev = pageIndex > 0
+  const canNext = pageCount !== null && pageIndex < pageCount - 1
+  const showNav = pageCount !== null && pageCount > 1
+
   return (
     <div
       className="overflow-hidden rounded-2xl border border-black/5 bg-surface"
       style={{ boxShadow: 'var(--shadow-doc)' }}
     >
-      {/* Window chrome — echoes the hero document cards */}
+      {/* Window chrome */}
       <div className="flex items-center gap-2 border-b border-border/70 bg-page/60 px-4 py-2.5">
         <span className="flex gap-1.5" aria-hidden>
           <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
         </span>
-        <span className="ml-1 truncate text-[11px] font-medium text-muted">{pdfFile.name}</span>
+        <span className="ml-1 flex-1 truncate text-[11px] font-medium text-muted">
+          {pdfFile.name}
+        </span>
+        {showNav && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={!canPrev}
+              onClick={() => onPageChange?.(pageIndex - 1)}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-secondary transition-colors hover:bg-black/5 disabled:opacity-30"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <span className="min-w-[3.5rem] text-center text-[11px] font-semibold tabular-nums text-secondary">
+              {pageIndex + 1} / {pageCount}
+            </span>
+            <button
+              type="button"
+              disabled={!canNext}
+              onClick={() => onPageChange?.(pageIndex + 1)}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-secondary transition-colors hover:bg-black/5 disabled:opacity-30"
+              aria-label="Next page"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-[var(--bg-page)] p-3 sm:p-4">

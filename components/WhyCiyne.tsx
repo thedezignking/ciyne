@@ -38,21 +38,41 @@ export default function WhyCiyne() {
           </p>
         </Reveal>
 
-        <div className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-2">
+        {/* Bento grid: 2 tall + 2 short, or 2x2 with varying emphasis */}
+        <div className="mt-12 grid gap-5 sm:grid-cols-2">
           {POINTS.map((p, i) => {
             const Icon = p.icon
+            const isFeatured = i === 0 || i === 3
             return (
               <Reveal key={p.title} delay={i * 100}>
-                <div className="group flex gap-4 rounded-2xl p-3 transition-colors duration-300 hover:bg-accent-50/60">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600 transition-all duration-300 group-hover:scale-110 group-hover:bg-accent-500 group-hover:text-[#1a2332]">
-                    <Icon className="h-5 w-5" aria-hidden />
+                <div
+                  className={`group relative overflow-hidden rounded-3xl border border-border/60 transition-all duration-300 hover:border-accent-500/30 ${
+                    isFeatured ? 'bg-accent-50/40 p-8 sm:p-9' : 'bg-surface p-7 sm:p-8'
+                  }`}
+                  style={{ boxShadow: 'var(--shadow-card)' }}
+                >
+                  <span
+                    className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 group-hover:scale-110 ${
+                      isFeatured
+                        ? 'bg-accent-500 text-[#1a2332] shadow-sm'
+                        : 'bg-accent-50 text-accent-600 group-hover:bg-accent-500 group-hover:text-[#1a2332]'
+                    }`}
+                  >
+                    <Icon className="h-6 w-6" />
                   </span>
-                  <div>
-                    <h3 className="text-base font-bold text-[var(--text-primary)]">{p.title}</h3>
-                    <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-secondary)]">
-                      {p.body}
-                    </p>
-                  </div>
+                  <h3 className="mt-5 text-lg font-extrabold text-[var(--text-primary)]">
+                    {p.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+                    {p.body}
+                  </p>
+
+                  {/* Decorative gradient orb */}
+                  <div
+                    className="pointer-events-none absolute -bottom-12 -right-12 h-36 w-36 rounded-full opacity-[0.06] transition-opacity duration-500 group-hover:opacity-[0.14]"
+                    style={{ background: 'var(--brand-gradient)' }}
+                    aria-hidden
+                  />
                 </div>
               </Reveal>
             )
