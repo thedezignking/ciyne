@@ -38,10 +38,10 @@ export default function HowItWorks() {
           return (
             <Reveal as="li" key={step.title} delay={i * 120}>
               <div
-                className="lift relative h-full rounded-2xl border border-border bg-surface p-6"
+                className="lift group relative h-full rounded-2xl border border-border bg-surface p-6"
                 style={{ boxShadow: 'var(--shadow-card)' }}
               >
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-50 text-accent-600 transition-all duration-300 group-hover:scale-110 group-hover:bg-accent-500 group-hover:text-[#1a2332]">
                   <Icon className="h-5 w-5" aria-hidden />
                 </span>
                 <span className="mt-5 block text-sm font-bold tabular-nums text-[var(--text-muted)]">
