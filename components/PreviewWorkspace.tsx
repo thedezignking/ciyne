@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
+import { Move } from 'lucide-react'
 import DocumentPreview from '@/components/DocumentPreview'
 import SignaturePlacer from '@/components/SignaturePlacer'
 import type { SignaturePlacement } from '@/types'
@@ -27,8 +28,9 @@ export default function PreviewWorkspace({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-secondary">
-        Drag and resize your signature on the document.
+      <p className="inline-flex items-center gap-2 rounded-full border border-border bg-page/60 px-3 py-1.5 text-xs font-medium text-secondary">
+        <Move className="h-3.5 w-3.5 text-accent-600" aria-hidden />
+        Drag to move · pull the corner to resize
       </p>
       <DocumentPreview
         pdfFile={pdfFile}

@@ -67,6 +67,30 @@ body {
   animation: float-doc 7s ease-in-out infinite;
 }
 
+/* Scroll-triggered reveal (driven by components/Reveal.tsx) */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.7s var(--ease-out-quint),
+    transform 0.7s var(--ease-out-quint);
+  will-change: opacity, transform;
+}
+[data-reveal][data-shown='true'] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Card hover lift */
+.lift {
+  transition:
+    transform 0.3s var(--ease-out-quint),
+    box-shadow 0.3s var(--ease-out-quint);
+}
+.lift:hover {
+  transform: translateY(-4px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-rise,
   .animate-fade {
@@ -80,5 +104,16 @@ body {
   .sig-path {
     stroke-dashoffset: 0 !important;
     animation: none !important;
+  }
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .lift {
+    transition: none;
+  }
+  .lift:hover {
+    transform: none;
   }
 }
