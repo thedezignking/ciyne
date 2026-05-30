@@ -42,15 +42,17 @@ export default function WhyCiyne() {
           {POINTS.map((p, i) => {
             const Icon = p.icon
             return (
-              <Reveal key={p.title} delay={i * 100} className="flex gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
-                  <Icon className="h-5 w-5" aria-hidden />
-                </span>
-                <div>
-                  <h3 className="text-base font-bold text-[var(--text-primary)]">{p.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-secondary)]">
-                    {p.body}
-                  </p>
+              <Reveal key={p.title} delay={i * 100}>
+                <div className="group flex gap-4 rounded-2xl p-3 transition-colors duration-300 hover:bg-accent-50/60">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600 transition-all duration-300 group-hover:scale-110 group-hover:bg-accent-500 group-hover:text-[#1a2332]">
+                    <Icon className="h-5 w-5" aria-hidden />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-[var(--text-primary)]">{p.title}</h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-secondary)]">
+                      {p.body}
+                    </p>
+                  </div>
                 </div>
               </Reveal>
             )
