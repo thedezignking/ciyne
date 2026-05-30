@@ -1,72 +1,69 @@
+import { ShieldOff, FileCheck, Layers, Infinity } from 'lucide-react'
 import Reveal from '@/components/Reveal'
 
 const POINTS = [
   {
-    n: '01',
-    title: 'No account',
-    body: 'Skip the sign-up wall. Open the page and start signing immediately — no email, no password, no waiting.',
+    icon: ShieldOff,
+    title: 'No account needed',
+    body: 'No email, no password, no verification step. Open the page and start signing.',
   },
   {
-    n: '02',
-    title: 'No watermark',
-    body: 'Your signed PDF comes out clean. No logo, no branding, no fine print stamped across your document.',
+    icon: FileCheck,
+    title: 'Clean output',
+    body: 'No watermark, no Ciyne branding, no fine print on your document. The signed PDF is yours.',
   },
   {
-    n: '03',
+    icon: Layers,
     title: 'Original quality',
-    body: 'Your signature is placed on the original file. No re-compression, no resolution loss, no blurry pages.',
+    body: 'Your signature is composited onto the original file. No re-encoding, no resolution loss.',
   },
   {
-    n: '04',
-    title: 'Free, unlimited',
-    body: 'Sign as many documents as you need. No trials, no per-document fees, no premium tier.',
+    icon: Infinity,
+    title: 'Free, no limits',
+    body: 'Sign as many documents as you need. No trial period, no per-document fee, no premium tier.',
   },
 ]
 
 export default function WhyCiyne() {
   return (
-    <section id="why" className="scroll-mt-6">
+    <section id="why" className="scroll-mt-6 border-t border-border/50">
       <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
-        {/* Header — split layout matching HowItWorks */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="grid gap-12 lg:grid-cols-[1fr_1.5fr] lg:gap-20">
+          {/* Left — heading */}
           <Reveal>
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center justify-center rounded-full bg-accent-50 px-3 py-1 text-xs font-semibold tabular-nums text-accent-600">
-                02
-              </span>
-              <span className="text-sm font-medium text-[var(--text-muted)]">Principles</span>
+            <div className="lg:sticky lg:top-24">
+              <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+                Built to get out
+                <br className="hidden sm:block" />
+                {' '}of your way.
+              </h2>
+              <p className="mt-3 max-w-sm text-base leading-relaxed text-[var(--text-secondary)]">
+                Most signing tools gate features behind accounts and paywalls. Ciyne has neither.
+              </p>
             </div>
-            <h2 className="mt-5 text-[clamp(2rem,5vw,3.25rem)] font-extrabold leading-[1.1] tracking-tight text-[var(--text-primary)]">
-              Why Ciyne
-            </h2>
           </Reveal>
-          <Reveal delay={100}>
-            <p className="max-w-sm text-sm leading-relaxed text-[var(--text-secondary)] sm:text-right">
-              Most signing tools want your email before they want to help. Ciyne just signs the PDF.
-            </p>
-          </Reveal>
-        </div>
 
-        {/* Two-column staggered grid */}
-        <div className="stagger-grid mt-20 grid grid-cols-1 gap-x-16 gap-y-16 sm:grid-cols-2">
-          {POINTS.map((p, i) => (
-            <Reveal
-              key={p.n}
-              delay={i * 100}
-            >
-              <div className="group">
-                <span className="inline-flex items-center justify-center rounded-full bg-accent-50 px-3 py-1.5 text-xs font-bold tabular-nums text-accent-600 transition-colors duration-300 group-hover:bg-accent-500 group-hover:text-[#1a2332]">
-                  {p.n}
-                </span>
-                <h3 className="mt-4 text-2xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-3xl">
-                  {p.title}
-                </h3>
-                <p className="mt-3 max-w-sm text-sm leading-relaxed text-[var(--text-secondary)]">
-                  {p.body}
-                </p>
-              </div>
-            </Reveal>
-          ))}
+          {/* Right — points */}
+          <div className="grid gap-10 sm:grid-cols-2 sm:gap-x-12 sm:gap-y-12">
+            {POINTS.map((p, i) => {
+              const Icon = p.icon
+              return (
+                <Reveal key={p.title} delay={i * 80}>
+                  <div className="group">
+                    <span className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-accent-50 text-accent-600 transition-colors duration-200 group-hover:bg-accent-500 group-hover:text-[#1a2332]">
+                      <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />
+                    </span>
+                    <h3 className="text-base font-bold text-[var(--text-primary)]">
+                      {p.title}
+                    </h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-secondary)]">
+                      {p.body}
+                    </p>
+                  </div>
+                </Reveal>
+              )
+            })}
+          </div>
         </div>
       </div>
     </section>
