@@ -19,8 +19,9 @@
   --text-primary: #1a2332;
   --text-secondary: #6b788e;
   --text-muted: #98a1b0;
-  --btn-primary-bg: #2d3748;
-  --btn-primary-fg: #ffffff;
+  --btn-primary-bg: var(--accent-500);
+  --btn-primary-fg: #1a2332;
+  --btn-primary-hover: var(--accent-600);
   --btn-secondary-border: #d1d5db;
   --btn-secondary-bg: #ffffff;
   --btn-secondary-fg: #1a2332;

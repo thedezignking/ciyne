@@ -45,13 +45,15 @@ export default function SignatureUploader({ onFile }: SignatureUploaderProps) {
           if (f) handleFile(f)
         }}
         onClick={() => inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-8 transition-colors ${
+        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 transition-all ${
           dragOver
-            ? 'border-accent-500 bg-accent-50'
-            : 'border-border bg-surface hover:border-accent-500/50'
+            ? 'border-accent-500 bg-accent-50 scale-[1.01]'
+            : 'border-border bg-surface hover:border-accent-500/60 hover:bg-accent-50/40'
         }`}
       >
-        <ImageUp className="mb-2 h-8 w-8 text-muted" aria-hidden />
+        <span className={`mb-3 flex h-12 w-12 items-center justify-center rounded-2xl transition-colors ${dragOver ? 'bg-accent-500/10' : 'bg-[var(--bg-page)]'}`}>
+          <ImageUp className={`h-6 w-6 transition-colors ${dragOver ? 'text-accent-600' : 'text-[var(--text-muted)]'}`} aria-hidden />
+        </span>
         <p className="text-sm font-semibold text-primary">Upload signature photo</p>
         <p className="mt-1 text-sm text-secondary">JPG, PNG, or WEBP</p>
       </div>
