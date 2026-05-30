@@ -27,7 +27,7 @@ const POINTS = [
 export default function WhyCiyne() {
   return (
     <section id="why" className="scroll-mt-6 border-t border-border/50">
-      <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+      <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
         <div className="grid gap-14 lg:grid-cols-[1fr_1.4fr] lg:gap-20">
           {/* Left — heading */}
           <Reveal>
