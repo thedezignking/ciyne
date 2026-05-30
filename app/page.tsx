@@ -79,9 +79,9 @@ export default function HomePage() {
             </span>
             <span className="text-lg font-bold tracking-tight text-primary">Ciyne</span>
           </div>
-          <p className="hidden text-sm text-secondary sm:block">
-            Free PDF signing · no account · no watermark
-          </p>
+          <span className="hidden items-center gap-1.5 rounded-full border border-accent-500/30 bg-accent-50 px-3 py-1 text-xs font-medium text-accent-600 sm:inline-flex">
+            Free · no account · no watermark
+          </span>
         </div>
       </header>
 
@@ -113,7 +113,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => goToStep(2)}
-                    className="focus-accent rounded-md bg-[var(--btn-primary-bg)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1a2332]"
+                    className="focus-accent rounded-md bg-[var(--btn-primary-bg)] px-5 py-2.5 text-sm font-semibold text-[var(--btn-primary-fg)] hover:bg-[var(--btn-primary-hover)] transition-colors"
                   >
                     Continue
                   </button>
@@ -139,7 +139,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => goToStep(3)}
-                    className="focus-accent rounded-md bg-[var(--btn-primary-bg)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1a2332]"
+                    className="focus-accent rounded-md bg-[var(--btn-primary-bg)] px-5 py-2.5 text-sm font-semibold text-[var(--btn-primary-fg)] hover:bg-[var(--btn-primary-hover)] transition-colors"
                   >
                     Continue to placement
                   </button>
