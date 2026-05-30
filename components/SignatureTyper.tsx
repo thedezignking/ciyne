@@ -16,6 +16,12 @@ const FONTS = [
 
 const INK = '#1a2332'
 
+function resolveCssVar(cssVar: string): string {
+  if (typeof window === 'undefined') return cssVar
+  const raw = cssVar.replace(/^var\(/, '').replace(/\)$/, '')
+  return getComputedStyle(document.documentElement).getPropertyValue(raw).trim() || cssVar
+}
+
 export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
   const [text, setText] = useState('')
   const [fontId, setFontId] = useState(FONTS[0].id)
@@ -25,31 +31,32 @@ export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
     const value = text.trim()
     if (!value) return
 
-    // Render large for a crisp result; trimToDataUrl crops the margins after.
     const fontPx = 160
     const pad = 50
-    const fontSpec = `${font.weight} ${fontPx}px ${font.cssVar}`
+    const resolvedFamily = resolveCssVar(font.cssVar)
+    const fontSpec = `${font.weight} ${fontPx}px ${resolvedFamily}`
 
-    // Make sure the chosen webfont is ready before painting to canvas.
     try {
       await document.fonts.load(fontSpec, value)
     } catch {
-      /* fall through; canvas will use whatever is available */
+      /* fall through */
     }
 
     const measure = document.createElement('canvas').getContext('2d')!
     measure.font = fontSpec
     const textW = Math.ceil(measure.measureText(value).width)
 
+    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 3) : 1
     const canvas = document.createElement('canvas')
-    canvas.width = textW + pad * 2
-    canvas.height = Math.ceil(fontPx * 1.8)
+    canvas.width = (textW + pad * 2) * dpr
+    canvas.height = Math.ceil(fontPx * 1.8) * dpr
     const ctx = canvas.getContext('2d')!
+    ctx.scale(dpr, dpr)
     ctx.font = fontSpec
     ctx.fillStyle = INK
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'left'
-    ctx.fillText(value, pad, canvas.height / 2)
+    ctx.fillText(value, pad, Math.ceil(fontPx * 1.8) / 2)
 
     const dataUrl = trimToDataUrl(canvas)
     if (dataUrl) onSignature(dataUrl)

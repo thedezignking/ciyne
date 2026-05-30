@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Download } from 'lucide-react'
 import type { ProcessPayload } from '@/types'
 
@@ -13,6 +13,7 @@ type DownloadButtonProps = {
 export default function DownloadButton({ pdfFile, payload, disabled }: DownloadButtonProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const linkRef = useRef<HTMLAnchorElement>(null)
 
   async function handleDownload() {
     if (!payload) return
@@ -39,12 +40,19 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
 
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download =
+      const filename =
         pdfFile.name.replace(/\.pdf$/i, '') + '-signed.pdf' || 'signed.pdf'
-      a.click()
-      URL.revokeObjectURL(url)
+
+      const link = linkRef.current
+      if (link) {
+        link.href = url
+        link.download = filename
+        link.click()
+      } else {
+        window.open(url, '_blank')
+      }
+
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -54,6 +62,9 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
 
   return (
     <div className="space-y-2">
+      {/* Hidden anchor for reliable mobile downloads */}
+      {/* eslint-disable-next-line jsx-a11y/anchor-has-content */}
+      <a ref={linkRef} className="hidden" aria-hidden />
       <button
         type="button"
         disabled={disabled || !payload || loading}

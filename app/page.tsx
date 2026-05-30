@@ -6,6 +6,7 @@ import type { LucideIcon } from 'lucide-react'
 import LandingHero from '@/components/LandingHero'
 import HowItWorks from '@/components/HowItWorks'
 import WhyCiyne from '@/components/WhyCiyne'
+import FAQ from '@/components/FAQ'
 import SiteFooter from '@/components/SiteFooter'
 import ProgressRail from '@/components/ProgressRail'
 import PdfUploader from '@/components/PdfUploader'
@@ -70,6 +71,7 @@ export default function HomePage() {
         <LandingHero onStart={startSigning} />
         <HowItWorks />
         <WhyCiyne />
+        <FAQ />
         <SiteFooter onStart={startSigning} />
       </div>
     )
@@ -129,7 +131,7 @@ export default function HomePage() {
             n={1}
             icon={FileText}
             title="Upload your PDF"
-            desc="We render the first page so you can place your signature exactly where you want."
+            desc="We render every page so you can place your signature exactly where you want."
           >
             <PdfUploader file={pdfFile} onFile={handlePdf} />
             {pdfFile && (
@@ -169,7 +171,7 @@ export default function HomePage() {
             n={3}
             icon={MousePointer2}
             title="Place & download"
-            desc="Drag your signature into position, then download the signed PDF."
+            desc="Navigate to any page, drag your signature into position, then download."
           >
             <PreviewWorkspace
               pdfFile={pdfFile}
