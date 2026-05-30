@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import Reveal from '@/components/Reveal'
 
 const ITEMS = [
@@ -36,41 +37,46 @@ export default function FAQ() {
   return (
     <section className="border-t border-border/50">
       <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
-        <div className="grid gap-12 lg:grid-cols-[1fr_1.5fr] lg:gap-20">
+        <div className="grid gap-14 lg:grid-cols-[1fr_1.4fr] lg:gap-20">
           {/* Left — heading */}
           <Reveal>
             <div className="lg:sticky lg:top-24">
-              <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+              <span className="text-sm font-semibold tracking-wide text-accent-600">
+                FAQ
+              </span>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
                 Common questions
               </h2>
-              <p className="mt-3 max-w-sm text-base leading-relaxed text-[var(--text-secondary)]">
+              <p className="mt-4 max-w-sm text-base leading-relaxed text-[var(--text-secondary)]">
                 Everything runs in your browser. No data leaves your device.
               </p>
             </div>
           </Reveal>
 
           {/* Right — accordion */}
-          <div>
+          <div className="rounded-2xl border border-border/70 bg-surface">
             {ITEMS.map((item, i) => {
               const isOpen = openIndex === i
+              const isLast = i === ITEMS.length - 1
               return (
                 <Reveal key={i} delay={i * 50}>
-                  <div className={`border-b border-border/50 ${i === 0 ? 'border-t' : ''}`}>
+                  <div className={!isLast ? 'border-b border-border/50' : ''}>
                     <button
                       type="button"
                       onClick={() => setOpenIndex(isOpen ? null : i)}
-                      className="flex w-full items-baseline justify-between gap-6 py-5 text-left"
+                      className="group flex w-full items-center justify-between gap-6 px-6 py-5 text-left sm:px-7"
                       aria-expanded={isOpen}
                     >
                       <span className="text-sm font-semibold text-[var(--text-primary)] sm:text-[15px]">
                         {item.q}
                       </span>
-                      <span
-                        className="shrink-0 text-xs font-medium text-[var(--text-muted)] transition-colors"
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 text-[var(--text-muted)] transition-transform duration-300 ${
+                          isOpen ? 'rotate-180' : ''
+                        }`}
+                        strokeWidth={2}
                         aria-hidden
-                      >
-                        {isOpen ? '−' : '+'}
-                      </span>
+                      />
                     </button>
                     <div
                       className={`grid transition-all duration-300 ease-out ${
@@ -78,7 +84,7 @@ export default function FAQ() {
                       }`}
                     >
                       <div className="overflow-hidden">
-                        <p className="pb-5 text-sm leading-relaxed text-[var(--text-secondary)]">
+                        <p className="px-6 pb-5 text-sm leading-relaxed text-[var(--text-secondary)] sm:px-7">
                           {item.a}
                         </p>
                       </div>

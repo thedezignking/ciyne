@@ -26,34 +26,35 @@ const POINTS = [
 
 export default function WhyCiyne() {
   return (
-    <section id="why" className="scroll-mt-6 border-t border-border/50">
+    <section id="why" className="scroll-mt-6">
       <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
-        <div className="grid gap-12 lg:grid-cols-[1fr_1.5fr] lg:gap-20">
+        <div className="grid gap-14 lg:grid-cols-[1fr_1.4fr] lg:gap-20">
           {/* Left — heading */}
           <Reveal>
             <div className="lg:sticky lg:top-24">
-              <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
-                Built to get out
-                <br className="hidden sm:block" />
-                {' '}of your way.
+              <span className="text-sm font-semibold tracking-wide text-accent-600">
+                Why Ciyne
+              </span>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+                Built to get out of your way.
               </h2>
-              <p className="mt-3 max-w-sm text-base leading-relaxed text-[var(--text-secondary)]">
+              <p className="mt-4 max-w-sm text-base leading-relaxed text-[var(--text-secondary)]">
                 Most signing tools gate features behind accounts and paywalls. Ciyne has neither.
               </p>
             </div>
           </Reveal>
 
-          {/* Right — points */}
-          <div className="grid gap-10 sm:grid-cols-2 sm:gap-x-12 sm:gap-y-12">
+          {/* Right — 2x2 grid */}
+          <div className="grid gap-px overflow-hidden rounded-2xl border border-border/70 bg-border/40 sm:grid-cols-2">
             {POINTS.map((p, i) => {
               const Icon = p.icon
               return (
                 <Reveal key={p.title} delay={i * 80}>
-                  <div className="group">
-                    <span className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-accent-50 text-accent-600 transition-colors duration-200 group-hover:bg-accent-500 group-hover:text-[#1a2332]">
-                      <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />
+                  <div className="group flex h-full flex-col bg-surface p-7 transition-colors duration-200 hover:bg-accent-50/20">
+                    <span className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-surface text-accent-600 transition-all duration-200 group-hover:border-accent-500/40 group-hover:bg-accent-50">
+                      <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
                     </span>
-                    <h3 className="text-base font-bold text-[var(--text-primary)]">
+                    <h3 className="text-[15px] font-bold text-[var(--text-primary)]">
                       {p.title}
                     </h3>
                     <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-secondary)]">
