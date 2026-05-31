@@ -12,6 +12,15 @@ type SignaturePlacerProps = {
 
 type Rect = { x: number; y: number; width: number; height: number }
 
+function clientXY(e: MouseEvent | TouchEvent): { cx: number; cy: number } | null {
+  if ('touches' in e) {
+    const t = e.touches[0] ?? e.changedTouches[0]
+    if (!t) return null
+    return { cx: t.clientX, cy: t.clientY }
+  }
+  return { cx: e.clientX, cy: e.clientY }
+}
+
 export default function SignaturePlacer({
   signatureDataUrl,
   canvasWidth,
@@ -24,20 +33,12 @@ export default function SignaturePlacer({
     startX: number
     startY: number
     startRect: Rect
-    pointerId: number
   } | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const rectRef = useRef<Rect | null>(null)
 
   const emit = useCallback(
     (r: Rect) => {
-      onPlacementChange({
-        x: r.x,
-        y: r.y,
-        width: r.width,
-        height: r.height,
-        canvasWidth,
-        canvasHeight,
-      })
+      onPlacementChange({ x: r.x, y: r.y, width: r.width, height: r.height, canvasWidth, canvasHeight })
     },
     [canvasWidth, canvasHeight, onPlacementChange]
   )
@@ -56,113 +57,103 @@ export default function SignaturePlacer({
         height,
       }
       setRect(initial)
+      rectRef.current = initial
       emit(initial)
     }
     img.src = signatureDataUrl
   }, [signatureDataUrl, canvasWidth, canvasHeight, emit])
 
   useEffect(() => {
-    function onMove(e: PointerEvent) {
+    function onMove(e: MouseEvent | TouchEvent) {
       const d = dragRef.current
       if (!d) return
       e.preventDefault()
-      const dx = e.clientX - d.startX
-      const dy = e.clientY - d.startY
+      const pt = clientXY(e)
+      if (!pt) return
+      const dx = pt.cx - d.startX
+      const dy = pt.cy - d.startY
 
-      setRect((prev) => {
-        if (!prev) return prev
-        let next: Rect
-        if (d.mode === 'move') {
-          next = {
-            ...d.startRect,
-            x: Math.max(0, Math.min(canvasWidth - d.startRect.width, d.startRect.x + dx)),
-            y: Math.max(0, Math.min(canvasHeight - d.startRect.height, d.startRect.y + dy)),
-          }
-        } else {
-          const width = Math.max(40, Math.min(canvasWidth - d.startRect.x, d.startRect.width + dx))
-          const aspect = d.startRect.height / d.startRect.width
-          const height = width * aspect
-          next = {
-            ...d.startRect,
-            width,
-            height: Math.min(height, canvasHeight - d.startRect.y),
-          }
+      let next: Rect
+      if (d.mode === 'move') {
+        next = {
+          ...d.startRect,
+          x: Math.max(0, Math.min(canvasWidth - d.startRect.width, d.startRect.x + dx)),
+          y: Math.max(0, Math.min(canvasHeight - d.startRect.height, d.startRect.y + dy)),
         }
-        emit(next)
-        return next
-      })
-    }
-
-    function onUp(e: PointerEvent) {
-      const d = dragRef.current
-      if (!d) return
-      dragRef.current = null
-      const el = containerRef.current
-      if (el) {
-        try { el.releasePointerCapture(e.pointerId) } catch { /* ok */ }
+      } else {
+        const width = Math.max(40, Math.min(canvasWidth - d.startRect.x, d.startRect.width + dx))
+        const aspect = d.startRect.height / d.startRect.width
+        const height = width * aspect
+        next = { ...d.startRect, width, height: Math.min(height, canvasHeight - d.startRect.y) }
       }
+      setRect(next)
+      rectRef.current = next
+      emit(next)
     }
 
-    const el = containerRef.current
-    if (!el) return
-    el.addEventListener('pointermove', onMove, { passive: false })
-    el.addEventListener('pointerup', onUp)
-    el.addEventListener('pointercancel', onUp)
+    function onEnd() {
+      dragRef.current = null
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onEnd)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onEnd)
+    window.addEventListener('touchcancel', onEnd)
     return () => {
-      el.removeEventListener('pointermove', onMove)
-      el.removeEventListener('pointerup', onUp)
-      el.removeEventListener('pointercancel', onUp)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onEnd)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onEnd)
+      window.removeEventListener('touchcancel', onEnd)
     }
   }, [canvasWidth, canvasHeight, emit])
 
-  const startDrag = (e: React.PointerEvent, mode: 'move' | 'resize') => {
-    if (!rect) return
-    e.preventDefault()
-    e.stopPropagation()
-    dragRef.current = {
-      mode,
-      startX: e.clientX,
-      startY: e.clientY,
-      startRect: rect,
-      pointerId: e.pointerId,
-    }
-    containerRef.current?.setPointerCapture(e.pointerId)
-  }
+  const startDrag = useCallback(
+    (mode: 'move' | 'resize', e: React.MouseEvent | React.TouchEvent) => {
+      const r = rectRef.current
+      if (!r) return
+      e.preventDefault()
+      e.stopPropagation()
+      const pt = clientXY(e.nativeEvent)
+      if (!pt) return
+      dragRef.current = { mode, startX: pt.cx, startY: pt.cy, startRect: r }
+    },
+    []
+  )
 
   if (!rect) return null
 
   return (
     <div
-      ref={containerRef}
-      className="absolute left-0 top-0 pointer-events-auto"
+      className="absolute left-0 top-0"
       style={{ width: canvasWidth, height: canvasHeight, touchAction: 'none' }}
       aria-label="Drag and resize your signature"
     >
+      {/* Move target */}
       <div
         className="absolute cursor-move select-none"
-        style={{
-          left: rect.x,
-          top: rect.y,
-          width: rect.width,
-          height: rect.height,
-          touchAction: 'none',
-        }}
-        onPointerDown={(e) => startDrag(e, 'move')}
+        style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height, touchAction: 'none' }}
+        onMouseDown={(e) => startDrag('move', e)}
+        onTouchStart={(e) => startDrag('move', e)}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={signatureDataUrl}
           alt=""
           draggable={false}
-          className="h-full w-full object-contain pointer-events-none"
+          className="h-full w-full object-contain pointer-events-none select-none"
         />
+
+        {/* Resize handle */}
         <div
           role="presentation"
-          className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 cursor-se-resize items-center justify-center rounded-full border-2 border-accent-500 bg-white shadow-sm sm:-bottom-0 sm:-right-0 sm:h-4 sm:w-4 sm:rounded-sm"
+          className="absolute -bottom-3 -right-3 flex h-8 w-8 cursor-se-resize items-center justify-center rounded-full border-2 border-accent-600 bg-white shadow-sm"
           style={{ touchAction: 'none' }}
-          onPointerDown={(e) => startDrag(e, 'resize')}
+          onMouseDown={(e) => { e.stopPropagation(); startDrag('resize', e) }}
+          onTouchStart={(e) => { e.stopPropagation(); startDrag('resize', e) }}
         >
-          <span className="block h-2 w-2 rounded-sm bg-accent-500 sm:hidden" />
+          <span className="block h-2.5 w-2.5 rounded-sm bg-accent-600" />
         </div>
       </div>
     </div>
