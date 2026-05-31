@@ -7,17 +7,16 @@ import SignatureTyper from '@/components/SignatureTyper'
 import SignatureUploader from '@/components/SignatureUploader'
 import SignatureCleaner from '@/components/SignatureCleaner'
 import { refineSignature, type InkColor } from '@/lib/refineSignature'
-
-type Mode = 'draw' | 'type' | 'upload'
+import type { SignatureDraft, SignatureMode } from '@/types/signatureDraft'
 
 type SignatureInputProps = {
-  /** Called with a transparent-PNG data URL whenever a signature is ready. */
-  onSignature: (dataUrl: string) => void
-  /** Called when the in-progress signature should be discarded (tab switch). */
-  onClear: () => void
+  draft: SignatureDraft
+  onDraftChange: (patch: Partial<SignatureDraft>) => void
+  /** Called with the final refined PNG (or null) whenever it changes. */
+  onSignature: (dataUrl: string | null) => void
 }
 
-const TABS: { id: Mode; label: string; icon: typeof PenLine }[] = [
+const TABS: { id: SignatureMode; label: string; icon: typeof PenLine }[] = [
   { id: 'draw', label: 'Draw', icon: PenLine },
   { id: 'type', label: 'Type', icon: Type },
   { id: 'upload', label: 'Upload photo', icon: ImageUp },
@@ -28,49 +27,37 @@ const SWATCH: Record<'navy' | 'black', string> = {
   black: '#1a1a1e',
 }
 
-export default function SignatureInput({ onSignature, onClear }: SignatureInputProps) {
-  const [mode, setMode] = useState<Mode>('draw')
-  const [uploadSource, setUploadSource] = useState<File | null>(null)
-  const [color, setColor] = useState<InkColor>('navy')
-  const [weight, setWeight] = useState(1.0)
+export default function SignatureInput({ draft, onDraftChange, onSignature }: SignatureInputProps) {
+  const { mode, color, weight } = draft
 
-  // The most recent raw (pre-refine) signature, so we can re-color on demand.
-  const rawRef = useRef<string | null>(null)
+  // The trimmed source for the active mode (pre-refine).
+  const activeSource =
+    mode === 'draw' ? draft.drawTrimmed : mode === 'type' ? draft.typeTrimmed : draft.uploadTrimmed
 
-  // Draw mode bakes its own color + thickness in — pass it straight through.
-  const handleDrawn = useCallback((dataUrl: string) => onSignature(dataUrl), [onSignature])
-
-  // Type / upload go through the refine step (thicken + recolor).
-  const applyRefine = useCallback(
-    async (raw: string, ink: InkColor, w: number) => {
-      const refined = await refineSignature(raw, ink, w)
-      onSignature(refined)
-    },
-    [onSignature]
-  )
-
-  const handleRefined = useCallback(
-    (dataUrl: string) => {
-      rawRef.current = dataUrl
-      void applyRefine(dataUrl, color, weight)
-    },
-    [applyRefine, color, weight]
-  )
-
-  // Re-refine when color or weight changes.
+  // Re-derive the refined PNG whenever the source, color, or weight changes.
+  // A token guards against out-of-order async results.
+  const tokenRef = useRef(0)
   useEffect(() => {
-    if (mode !== 'draw' && rawRef.current) void applyRefine(rawRef.current, color, weight)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [color, weight])
+    const token = ++tokenRef.current
+    if (!activeSource) {
+      onSignature(null)
+      return
+    }
+    void refineSignature(activeSource, color, weight).then((png) => {
+      if (tokenRef.current === token) onSignature(png)
+    })
+  }, [activeSource, color, weight, onSignature])
 
-  const switchMode = (next: Mode) => {
-    if (next === mode) return
-    setMode(next)
-    setUploadSource(null)
-    rawRef.current = null
-    if (next !== 'upload' && color === 'original') setColor('navy')
-    onClear()
-  }
+  const switchMode = useCallback(
+    (next: SignatureMode) => {
+      if (next === mode) return
+      const patch: Partial<SignatureDraft> = { mode: next }
+      // 'original' only applies to photos.
+      if (next !== 'upload' && color === 'original') patch.color = 'navy'
+      onDraftChange(patch)
+    },
+    [mode, color, onDraftChange]
+  )
 
   const colorOptions: InkColor[] = mode === 'upload' ? ['navy', 'black', 'original'] : ['navy', 'black']
 
@@ -93,9 +80,7 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
               aria-selected={active}
               onClick={() => switchMode(tab.id)}
               className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
-                active
-                  ? 'bg-surface text-primary shadow-sm'
-                  : 'text-secondary hover:text-primary'
+                active ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
               }`}
             >
               <Icon className="h-4 w-4" aria-hidden />
@@ -105,56 +90,73 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
         })}
       </div>
 
-      {/* Panel */}
-      {mode === 'draw' && <SignaturePad onSignature={handleDrawn} />}
+      {/* Ink + weight controls (shown once there is something to style) */}
+      <InkControls
+        options={colorOptions}
+        color={color}
+        onColorChange={(c) => onDraftChange({ color: c })}
+        weight={weight}
+        onWeightChange={(w) => onDraftChange({ weight: w })}
+        disabled={!activeSource}
+      />
+
+      {/* Input panel */}
+      {mode === 'draw' && (
+        <SignaturePad
+          color={color === 'black' ? SWATCH.black : SWATCH.navy}
+          initialImage={draft.drawFull}
+          onChange={(full, trimmed) => onDraftChange({ drawFull: full, drawTrimmed: trimmed })}
+        />
+      )}
 
       {mode === 'type' && (
-        <div className="space-y-4">
-          <InkSelector options={colorOptions} color={color} onColorChange={setColor} weight={weight} onWeightChange={setWeight} />
-          <SignatureTyper onSignature={handleRefined} />
-        </div>
+        <SignatureTyper
+          text={draft.typeText}
+          fontId={draft.typeFontId}
+          onTextChange={(t) => onDraftChange({ typeText: t })}
+          onFontChange={(f) => onDraftChange({ typeFontId: f })}
+          onRender={(trimmed) => onDraftChange({ typeTrimmed: trimmed })}
+        />
       )}
 
       {mode === 'upload' && (
         <div className="space-y-6">
           <SignatureUploader
-            onFile={(f) => {
-              setUploadSource(f)
-              rawRef.current = null
-              onClear()
-            }}
+            currentName={draft.uploadFile?.name ?? null}
+            onFile={(f) => onDraftChange({ uploadFile: f, uploadTrimmed: null })}
           />
-          {uploadSource && (
-            <div className="space-y-4">
-              <InkSelector options={colorOptions} color={color} onColorChange={setColor} weight={weight} onWeightChange={setWeight} />
-              <SignatureCleaner
-                sourceFile={uploadSource}
-                onCleaned={(_blob, dataUrl) => handleRefined(dataUrl)}
-              />
-            </div>
+          {draft.uploadFile && (
+            <SignatureCleaner
+              sourceFile={draft.uploadFile}
+              onCleaned={(_blob, dataUrl) => onDraftChange({ uploadTrimmed: dataUrl })}
+            />
           )}
         </div>
       )}
+
+      {/* Live preview of the final styled signature */}
+      <LivePreview source={activeSource} color={color} weight={weight} />
     </div>
   )
 }
 
-function InkSelector({
+function InkControls({
   options,
   color,
   onColorChange,
   weight,
   onWeightChange,
+  disabled,
 }: {
   options: InkColor[]
   color: InkColor
   onColorChange: (c: InkColor) => void
   weight: number
   onWeightChange: (w: number) => void
+  disabled: boolean
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-      {/* Color */}
+    <div className={`flex flex-wrap items-center gap-x-5 gap-y-3 ${disabled ? 'pointer-events-none opacity-40' : ''}`}>
       <div className="flex items-center gap-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-secondary">Ink</span>
         {options.map((opt) => {
@@ -198,7 +200,6 @@ function InkSelector({
         })}
       </div>
 
-      {/* Weight */}
       <label className="flex items-center gap-2 text-xs font-medium text-secondary">
         <span className="font-semibold uppercase tracking-wide">Weight</span>
         <input
@@ -212,6 +213,40 @@ function InkSelector({
           aria-label="Stroke thickness"
         />
       </label>
+    </div>
+  )
+}
+
+function LivePreview({
+  source,
+  color,
+  weight,
+}: {
+  source: string | null
+  color: InkColor
+  weight: number
+}) {
+  const [url, setUrl] = useState<string | null>(null)
+  const tokenRef = useRef(0)
+  useEffect(() => {
+    const token = ++tokenRef.current
+    if (!source) {
+      setUrl(null)
+      return
+    }
+    void refineSignature(source, color, weight).then((png) => {
+      if (tokenRef.current === token) setUrl(png)
+    })
+  }, [source, color, weight])
+
+  if (!source || !url) return null
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-secondary">Preview</p>
+      <div className="flex min-h-[96px] items-center justify-center overflow-hidden rounded-xl border border-border bg-[repeating-conic-gradient(#e7eaef_0%_25%,#f7f8fa_0%_50%)] bg-[length:16px_16px] p-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt="Signature preview" className="max-h-28 max-w-full object-contain" />
+      </div>
     </div>
   )
 }

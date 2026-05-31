@@ -1,19 +1,18 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Eraser, Check } from 'lucide-react'
+import { Eraser } from 'lucide-react'
 import { trimToDataUrl } from '@/lib/signatureCanvas'
 
 type SignaturePadProps = {
-  onSignature: (dataUrl: string) => void
+  /** Pen color for live feedback while drawing. */
+  color: string
+  /** Restore a previously drawn canvas (full-size snapshot). */
+  initialImage: string | null
+  /** Emits (fullSnapshot, trimmed) on every change; nulls when cleared. */
+  onChange: (full: string | null, trimmed: string | null) => void
 }
 
-const COLORS = [
-  { id: 'navy', value: '#2b3a67' },
-  { id: 'black', value: '#1a1a1e' },
-] as const
-
-// Base pen widths; the thickness slider scales these by 0.6×–1.8×.
 const BASE_MIN = 2.0
 const BASE_MAX = 5.5
 const VELOCITY_FACTOR = 0.35
@@ -26,29 +25,32 @@ function midpoint(a: Pt, b: Pt) {
 }
 
 /**
- * Draw-your-own signature with a real pen feel: stroke width responds to
- * stylus pressure when available, otherwise to drawing velocity (fast = thin,
- * slow = thick), with quadratic-curve smoothing between points. Pen color and
- * thickness are adjustable live from the toolbar. Exports a tightly cropped
- * transparent PNG.
+ * Draw-your-own signature with a real pen feel (velocity-driven width and
+ * quadratic smoothing). Strokes are emitted live to the parent, which applies
+ * the chosen ink color and weight. The canvas restores from `initialImage` so
+ * the drawing survives step navigation.
  */
-export default function SignaturePad({ onSignature }: SignaturePadProps) {
+export default function SignaturePad({ color, initialImage, onChange }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
   const points = useRef<Pt[]>([])
   const lastMid = useRef<{ x: number; y: number } | null>(null)
-  const [hasInk, setHasInk] = useState(false)
-
-  const [color, setColor] = useState<string>(COLORS[0].value)
-  // 0.6–1.8 thickness multiplier; 1.0 is the default pen weight.
-  const [thickness, setThickness] = useState(1)
-
-  // Refs so the live draw handlers always read the latest values.
-  const colorRef = useRef(color)
-  const thicknessRef = useRef(thickness)
   const width = useRef(BASE_MAX * 0.7)
+  const [hasInk, setHasInk] = useState(Boolean(initialImage))
+  const colorRef = useRef(color)
   colorRef.current = color
-  thicknessRef.current = thickness
+
+  const paintImage = useCallback((src: string) => {
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx) return
+    const img = new Image()
+    img.onload = () => {
+      const rect = canvas.getBoundingClientRect()
+      ctx.drawImage(img, 0, 0, rect.width, rect.height)
+    }
+    img.src = src
+  }, [])
 
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -64,45 +66,42 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
     ctx.lineJoin = 'round'
   }, [])
 
+  // Initial mount: size canvas and restore any saved drawing.
   useEffect(() => {
     setupCanvas()
+    if (initialImage) paintImage(initialImage)
     const onResize = () => {
       const canvas = canvasRef.current
       if (!canvas) return
       const snapshot = canvas.toDataURL()
       setupCanvas()
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      const img = new Image()
-      img.onload = () => {
-        const rect = canvas.getBoundingClientRect()
-        ctx.drawImage(img, 0, 0, rect.width, rect.height)
-      }
-      img.src = snapshot
+      paintImage(snapshot)
     }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [setupCanvas])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setupCanvas, paintImage])
 
   const pos = (e: React.PointerEvent): Pt => {
     const rect = canvasRef.current!.getBoundingClientRect()
     return { x: e.clientX - rect.left, y: e.clientY - rect.top, t: performance.now() }
   }
 
-  // Target stroke width from stylus pressure (preferred) or velocity, scaled
-  // by the chosen thickness.
   const targetWidth = (e: React.PointerEvent, from: Pt, to: Pt): number => {
-    const k = thicknessRef.current
-    const min = BASE_MIN * k
-    const max = BASE_MAX * k
     if (e.pointerType === 'pen' && e.pressure > 0 && e.pressure !== 0.5) {
-      return min + (max - min) * e.pressure
+      return BASE_MIN + (BASE_MAX - BASE_MIN) * e.pressure
     }
     const dist = Math.hypot(to.x - from.x, to.y - from.y)
     const dt = Math.max(1, to.t - from.t)
-    const velocity = dist / dt // px per ms
-    const w = max - velocity * (max - min) * VELOCITY_FACTOR
-    return Math.max(min, Math.min(max, w))
+    const velocity = dist / dt
+    const w = BASE_MAX - velocity * (BASE_MAX - BASE_MIN) * VELOCITY_FACTOR
+    return Math.max(BASE_MIN, Math.min(BASE_MAX, w))
+  }
+
+  const emit = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    onChange(canvas.toDataURL(), trimToDataUrl(canvas))
   }
 
   const start = (e: React.PointerEvent) => {
@@ -111,10 +110,9 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
     const p = pos(e)
     points.current = [p]
     lastMid.current = { x: p.x, y: p.y }
-    width.current = BASE_MAX * thicknessRef.current * 0.65
+    width.current = BASE_MAX * 0.65
     canvasRef.current?.setPointerCapture(e.pointerId)
 
-    // Seed dot so a tap leaves a mark.
     const ctx = canvasRef.current?.getContext('2d')
     if (ctx) {
       ctx.fillStyle = colorRef.current
@@ -158,6 +156,7 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
   }
 
   const end = (e: React.PointerEvent) => {
+    if (!drawing.current) return
     drawing.current = false
     points.current = []
     lastMid.current = null
@@ -166,6 +165,7 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
     } catch {
       /* already released */
     }
+    emit()
   }
 
   const clear = () => {
@@ -174,13 +174,7 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
     if (!canvas || !ctx) return
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     setHasInk(false)
-  }
-
-  const use = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const dataUrl = trimToDataUrl(canvas)
-    if (dataUrl) onSignature(dataUrl)
+    onChange(null, null)
   }
 
   return (
@@ -203,8 +197,7 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
         )}
       </div>
 
-      {/* Toolbar: clear · ink color · thickness · use */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+      <div className="flex items-center">
         <button
           type="button"
           onClick={clear}
@@ -213,52 +206,6 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
         >
           <Eraser className="h-4 w-4" aria-hidden />
           Clear
-        </button>
-
-        {/* Ink color */}
-        <div className="flex items-center gap-1.5">
-          {COLORS.map((c) => {
-            const active = color === c.value
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setColor(c.value)}
-                aria-pressed={active}
-                aria-label={`${c.id} ink`}
-                className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-transform ${
-                  active ? 'border-accent-600 scale-110' : 'border-border hover:border-border-strong'
-                }`}
-              >
-                <span className="block h-4 w-4 rounded-full" style={{ background: c.value }} aria-hidden />
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Thickness */}
-        <label className="flex items-center gap-2 text-xs font-medium text-secondary">
-          <span className="hidden sm:inline">Thickness</span>
-          <input
-            type="range"
-            min={0.6}
-            max={1.8}
-            step={0.05}
-            value={thickness}
-            onChange={(e) => setThickness(Number(e.target.value))}
-            className="h-1.5 w-20 cursor-pointer accent-accent-600 sm:w-28"
-            aria-label="Pen thickness"
-          />
-        </label>
-
-        <button
-          type="button"
-          onClick={use}
-          disabled={!hasInk}
-          className="focus-accent group ml-auto inline-flex items-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-5 py-2.5 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Check className="h-4 w-4" aria-hidden />
-          Use this signature
         </button>
       </div>
     </div>
