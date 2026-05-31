@@ -14,6 +14,7 @@ import SignatureInput from '@/components/SignatureInput'
 import PreviewWorkspace from '@/components/PreviewWorkspace'
 import DownloadButton from '@/components/DownloadButton'
 import type { AppStep, ProcessPayload, SignaturePlacement } from '@/types'
+import { emptyDraft, type SignatureDraft } from '@/types/signatureDraft'
 
 export default function HomePage() {
   const [focusMode, setFocusMode] = useState(false)
@@ -21,6 +22,7 @@ export default function HomePage() {
   const [maxReached, setMaxReached] = useState<AppStep>(1)
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
+  const [draft, setDraft] = useState<SignatureDraft>(emptyDraft)
   const [placement, setPlacement] = useState<SignaturePlacement | null>(null)
   const [batchPlacements, setBatchPlacements] = useState<SignaturePlacement[] | null>(null)
 
@@ -51,16 +53,19 @@ export default function HomePage() {
     [goToStep]
   )
 
-  const handleSignature = useCallback((dataUrl: string) => {
-    setSignatureDataUrl(dataUrl)
-    setPlacement(null)
-    setBatchPlacements(null)
+  const handleSignature = useCallback((dataUrl: string | null) => {
+    setSignatureDataUrl((prev) => {
+      // Only discard placements when the signature actually changes.
+      if (prev !== dataUrl) {
+        setPlacement(null)
+        setBatchPlacements(null)
+      }
+      return dataUrl
+    })
   }, [])
 
-  const clearSignature = useCallback(() => {
-    setSignatureDataUrl(null)
-    setPlacement(null)
-    setBatchPlacements(null)
+  const patchDraft = useCallback((patch: Partial<SignatureDraft>) => {
+    setDraft((prev) => ({ ...prev, ...patch }))
   }, [])
 
   const handlePlacement = useCallback((p: SignaturePlacement) => {
@@ -172,7 +177,7 @@ export default function HomePage() {
             title="Add your signature"
             desc="Draw it, type it, or upload a photo. We clean it up automatically."
           >
-            <SignatureInput onSignature={handleSignature} onClear={clearSignature} />
+            <SignatureInput draft={draft} onDraftChange={patchDraft} onSignature={handleSignature} />
             {signatureDataUrl && (
               <div className="mt-6 flex justify-end">
                 <PrimaryButton onClick={() => goToStep(3)}>
@@ -200,7 +205,12 @@ export default function HomePage() {
               onSignAll={handleSignAll}
             />
             <div className="mt-8 border-t border-border pt-6">
-              <DownloadButton pdfFile={pdfFile} payload={processPayload} disabled={!processPayload} />
+              <DownloadButton
+                pdfFile={pdfFile}
+                payload={processPayload}
+                disabled={!processPayload}
+                onEditSignature={() => goToStep(2)}
+              />
             </div>
           </StepCard>
         )}

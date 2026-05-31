@@ -6,9 +6,11 @@ import { ACCEPTED_SIGNATURE_TYPES } from '@/types'
 
 type SignatureUploaderProps = {
   onFile: (file: File) => void
+  /** Name of the already-selected file, if any (shown so a re-visit feels stateful). */
+  currentName?: string | null
 }
 
-export default function SignatureUploader({ onFile }: SignatureUploaderProps) {
+export default function SignatureUploader({ onFile, currentName }: SignatureUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -54,8 +56,12 @@ export default function SignatureUploader({ onFile }: SignatureUploaderProps) {
         <span className={`mb-3 flex h-12 w-12 items-center justify-center rounded-2xl transition-colors ${dragOver ? 'bg-accent-500/10' : 'bg-[var(--bg-page)]'}`}>
           <ImageUp className={`h-6 w-6 transition-colors ${dragOver ? 'text-accent-600' : 'text-[var(--text-muted)]'}`} aria-hidden />
         </span>
-        <p className="text-sm font-semibold text-primary">Upload signature photo</p>
-        <p className="mt-1 text-sm text-secondary">JPG, PNG, or WEBP</p>
+        <p className="text-sm font-semibold text-primary">
+          {currentName ? 'Replace signature photo' : 'Upload signature photo'}
+        </p>
+        <p className="mt-1 truncate text-sm text-secondary">
+          {currentName ?? 'JPG, PNG, or WEBP'}
+        </p>
       </div>
       <input
         ref={inputRef}

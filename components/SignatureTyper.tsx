@@ -1,11 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { Check } from 'lucide-react'
+import { useCallback, useEffect } from 'react'
 import { trimToDataUrl } from '@/lib/signatureCanvas'
 
 type SignatureTyperProps = {
-  onSignature: (dataUrl: string) => void
+  text: string
+  fontId: string
+  onTextChange: (text: string) => void
+  onFontChange: (fontId: string) => void
+  /** Emits a trimmed transparent PNG (or null when empty) on every change. */
+  onRender: (trimmed: string | null) => void
 }
 
 const FONTS = [
@@ -19,7 +23,6 @@ const INK = '#1a2332'
 function resolveFont(cssVar: string): string {
   if (typeof window === 'undefined') return 'sans-serif'
   const prop = cssVar.replace(/^var\(/, '').replace(/\)$/, '')
-  // Next.js sets font CSS variables on <body> via className, not on :root
   const fromBody = getComputedStyle(document.body).getPropertyValue(prop).trim()
   if (fromBody) return fromBody
   const fromRoot = getComputedStyle(document.documentElement).getPropertyValue(prop).trim()
@@ -27,14 +30,21 @@ function resolveFont(cssVar: string): string {
   return 'sans-serif'
 }
 
-export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
-  const [text, setText] = useState('')
-  const [fontId, setFontId] = useState(FONTS[0].id)
+export default function SignatureTyper({
+  text,
+  fontId,
+  onTextChange,
+  onFontChange,
+  onRender,
+}: SignatureTyperProps) {
   const font = FONTS.find((f) => f.id === fontId) ?? FONTS[0]
 
-  const render = async () => {
+  const render = useCallback(async () => {
     const value = text.trim()
-    if (!value) return
+    if (!value) {
+      onRender(null)
+      return
+    }
 
     const fontPx = 200
     const pad = 60
@@ -47,13 +57,11 @@ export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
       /* fall through */
     }
 
-    // Measure at 1x to get logical dimensions
     const measureCtx = document.createElement('canvas').getContext('2d')!
     measureCtx.font = fontSpec
     const metrics = measureCtx.measureText(value)
     const textW = Math.ceil(metrics.width)
 
-    // Render at high DPR for crisp output
     const dpr = Math.min(window.devicePixelRatio || 1, 3)
     const logicalW = textW + pad * 2
     const logicalH = Math.ceil(fontPx * 2)
@@ -69,16 +77,20 @@ export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
     ctx.textAlign = 'left'
     ctx.fillText(value, pad, logicalH / 2)
 
-    const dataUrl = trimToDataUrl(canvas, Math.round(16 * dpr))
-    if (dataUrl) onSignature(dataUrl)
-  }
+    onRender(trimToDataUrl(canvas, Math.round(16 * dpr)))
+  }, [text, font.cssVar, font.weight, onRender])
+
+  // Re-render live whenever the text or font changes.
+  useEffect(() => {
+    void render()
+  }, [render])
 
   return (
     <div className="space-y-4">
       <input
         type="text"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => onTextChange(e.target.value)}
         placeholder="Type your name"
         maxLength={40}
         className="focus-accent w-full rounded-xl border border-border bg-surface px-4 py-3 text-base text-primary outline-none placeholder:text-muted"
@@ -92,7 +104,7 @@ export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
             <button
               key={f.id}
               type="button"
-              onClick={() => setFontId(f.id)}
+              onClick={() => onFontChange(f.id)}
               className={`rounded-xl border px-2 py-3 text-center transition-colors ${
                 active
                   ? 'border-accent-500 bg-accent-50'
@@ -110,18 +122,6 @@ export default function SignatureTyper({ onSignature }: SignatureTyperProps) {
             </button>
           )
         })}
-      </div>
-
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => void render()}
-          disabled={!text.trim()}
-          className="focus-accent group inline-flex items-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-5 py-2.5 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Check className="h-4 w-4" aria-hidden />
-          Use this signature
-        </button>
       </div>
     </div>
   )
