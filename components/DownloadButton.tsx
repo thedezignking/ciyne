@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { Download } from 'lucide-react'
+import { useState } from 'react'
+import { Download, CheckCircle } from 'lucide-react'
 import type { ProcessPayload } from '@/types'
 
 type DownloadButtonProps = {
@@ -10,15 +10,26 @@ type DownloadButtonProps = {
   disabled?: boolean
 }
 
+type ReadyState = {
+  url: string
+  filename: string
+  file: File
+}
+
 export default function DownloadButton({ pdfFile, payload, disabled }: DownloadButtonProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const linkRef = useRef<HTMLAnchorElement>(null)
+  const [ready, setReady] = useState<ReadyState | null>(null)
 
-  async function handleDownload() {
+  async function handleProcess() {
     if (!payload) return
     setLoading(true)
     setError(null)
+    // Clear any previous result so we don't show stale download
+    if (ready) {
+      URL.revokeObjectURL(ready.url)
+      setReady(null)
+    }
 
     try {
       const formData = new FormData()
@@ -39,43 +50,15 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
       }
 
       const blob = await res.blob()
-      const filename =
-        (pdfFile.name.replace(/\.pdf$/i, '') || 'signed') + '-signed.pdf'
-
+      const filename = (pdfFile.name.replace(/\.pdf$/i, '') || 'signed') + '-signed.pdf'
+      const url = URL.createObjectURL(blob)
       const file = new File([blob], filename, { type: 'application/pdf' })
 
-      // 1. Try Web Share API (works on mobile with HTTPS)
-      if (
-        typeof navigator !== 'undefined' &&
-        typeof navigator.canShare === 'function' &&
-        navigator.canShare({ files: [file] })
-      ) {
-        try {
-          await navigator.share({ files: [file], title: filename })
-          return
-        } catch (shareErr) {
-          if (shareErr instanceof DOMException && shareErr.name === 'AbortError') return
-        }
-      }
-
-      // 2. Anchor download — works on desktop, some Android browsers
-      const url = URL.createObjectURL(blob)
-      const link = linkRef.current
-      if (link) {
-        link.href = url
-        link.download = filename
-        link.click()
-      }
-
-      // 3. Fallback: open in new tab (iOS Safari HTTP, older browsers)
-      // iOS ignores the download attr on blob URLs, so opening in a new tab
-      // lets the user use the native share/save from the PDF viewer.
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-      if (isMobile) {
-        window.open(url, '_blank')
-      }
-
-      setTimeout(() => URL.revokeObjectURL(url), 30_000)
+      // Don't trigger download here — just store the result and render a
+      // "Save PDF" button. When the user taps that button it's a fresh user
+      // gesture, which means iOS Safari won't block navigator.share or
+      // window.open. This is the only reliable mobile download pattern.
+      setReady({ url, filename, file })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -83,24 +66,63 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
     }
   }
 
+  async function handleSave() {
+    if (!ready) return
+    const { url, filename, file } = ready
+
+    // Web Share API — works on iOS 15.1+/Android Chrome with HTTPS.
+    // This is called from a fresh user tap so gesture context is valid.
+    if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: filename })
+        return
+      } catch (err) {
+        // User dismissed share sheet — not an error
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        // Otherwise fall through to anchor
+      }
+    }
+
+    // Desktop and Android — anchor download
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
   return (
     <div className="space-y-2">
-      {/* eslint-disable-next-line jsx-a11y/anchor-has-content */}
-      <a
-        ref={linkRef}
-        aria-hidden
-        tabIndex={-1}
-        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}
-      />
-      <button
-        type="button"
-        disabled={disabled || !payload || loading}
-        onClick={() => void handleDownload()}
-        className="focus-accent inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-7 py-3.5 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
-        <Download className="h-4 w-4" aria-hidden />
-        {loading ? 'Applying signature…' : 'Apply signature & download'}
-      </button>
+      {!ready ? (
+        <button
+          type="button"
+          disabled={disabled || !payload || loading}
+          onClick={() => void handleProcess()}
+          className="focus-accent inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-7 py-3.5 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+        >
+          <Download className="h-4 w-4" aria-hidden />
+          {loading ? 'Applying signature…' : 'Apply signature & download'}
+        </button>
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            className="focus-accent inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent-600 px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:opacity-90 sm:w-auto"
+          >
+            <CheckCircle className="h-4 w-4" aria-hidden />
+            Save signed PDF
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleProcess()}
+            className="text-sm text-[var(--text-muted)] underline-offset-2 hover:underline"
+          >
+            Re-apply
+          </button>
+        </div>
+      )}
       {error && (
         <p className="text-sm text-red-600" role="alert">
           {error}
