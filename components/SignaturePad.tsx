@@ -9,18 +9,33 @@ type SignaturePadProps = {
 }
 
 const INK = '#1a2332'
+const MIN_WIDTH = 1.1
+const MAX_WIDTH = 3.8
+// How quickly the stroke thins as the pen moves faster.
+const VELOCITY_FACTOR = 0.42
+// Exponential smoothing on the width so transitions are buttery.
+const WIDTH_SMOOTHING = 0.45
+
+type Pt = { x: number; y: number; t: number }
+
+function midpoint(a: Pt, b: Pt) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+}
 
 /**
- * Draw-your-own signature. Pointer-based (mouse, touch, stylus), high-DPI aware,
- * transparent background, exports a tightly cropped transparent PNG.
+ * Draw-your-own signature with a real pen feel: stroke width responds to
+ * stylus pressure when available, otherwise to drawing velocity (fast = thin,
+ * slow = thick), with quadratic-curve smoothing between points. Exports a
+ * tightly cropped transparent PNG.
  */
 export default function SignaturePad({ onSignature }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
-  const last = useRef<{ x: number; y: number } | null>(null)
+  const points = useRef<Pt[]>([])
+  const lastMid = useRef<{ x: number; y: number } | null>(null)
+  const width = useRef(MAX_WIDTH * 0.7)
   const [hasInk, setHasInk] = useState(false)
 
-  // Size the canvas backing store to its display box * devicePixelRatio.
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -34,13 +49,12 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.strokeStyle = INK
-    ctx.lineWidth = 2.8
+    ctx.fillStyle = INK
   }, [])
 
   useEffect(() => {
     setupCanvas()
     const onResize = () => {
-      // Preserve current drawing across resizes.
       const canvas = canvasRef.current
       if (!canvas) return
       const snapshot = canvas.toDataURL()
@@ -58,39 +72,82 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
     return () => window.removeEventListener('resize', onResize)
   }, [setupCanvas])
 
-  const pos = (e: React.PointerEvent) => {
-    const canvas = canvasRef.current!
-    const rect = canvas.getBoundingClientRect()
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  const pos = (e: React.PointerEvent): Pt => {
+    const rect = canvasRef.current!.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top, t: performance.now() }
+  }
+
+  // Target stroke width from stylus pressure (preferred) or velocity.
+  const targetWidth = (e: React.PointerEvent, from: Pt, to: Pt): number => {
+    if (e.pointerType === 'pen' && e.pressure > 0 && e.pressure !== 0.5) {
+      return MIN_WIDTH + (MAX_WIDTH - MIN_WIDTH) * e.pressure
+    }
+    const dist = Math.hypot(to.x - from.x, to.y - from.y)
+    const dt = Math.max(1, to.t - from.t)
+    const velocity = dist / dt // px per ms
+    const w = MAX_WIDTH - velocity * (MAX_WIDTH - MIN_WIDTH) * VELOCITY_FACTOR
+    return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, w))
   }
 
   const start = (e: React.PointerEvent) => {
     e.preventDefault()
     drawing.current = true
-    last.current = pos(e)
+    const p = pos(e)
+    points.current = [p]
+    lastMid.current = { x: p.x, y: p.y }
+    width.current = MAX_WIDTH * 0.6
     canvasRef.current?.setPointerCapture(e.pointerId)
+
+    // Seed dot so a tap leaves a mark.
+    const ctx = canvasRef.current?.getContext('2d')
+    if (ctx) {
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, width.current / 2, 0, Math.PI * 2)
+      ctx.fill()
+    }
   }
 
   const move = (e: React.PointerEvent) => {
     if (!drawing.current) return
     const ctx = canvasRef.current?.getContext('2d')
-    if (!ctx || !last.current) return
+    if (!ctx) return
+
+    const prev = points.current[points.current.length - 1]
     const p = pos(e)
+    if (!prev) {
+      points.current.push(p)
+      return
+    }
+
+    // Smooth the width toward the new target.
+    const target = targetWidth(e, prev, p)
+    width.current = width.current + (target - width.current) * WIDTH_SMOOTHING
+
+    const mid = midpoint(prev, p)
     ctx.beginPath()
-    ctx.moveTo(last.current.x, last.current.y)
-    ctx.lineTo(p.x, p.y)
+    ctx.lineWidth = width.current
+    if (lastMid.current) {
+      ctx.moveTo(lastMid.current.x, lastMid.current.y)
+      ctx.quadraticCurveTo(prev.x, prev.y, mid.x, mid.y)
+    } else {
+      ctx.moveTo(prev.x, prev.y)
+      ctx.lineTo(mid.x, mid.y)
+    }
     ctx.stroke()
-    last.current = p
+
+    lastMid.current = mid
+    points.current.push(p)
     if (!hasInk) setHasInk(true)
   }
 
   const end = (e: React.PointerEvent) => {
     drawing.current = false
-    last.current = null
+    points.current = []
+    lastMid.current = null
     try {
       canvasRef.current?.releasePointerCapture(e.pointerId)
     } catch {
-      /* pointer already released */
+      /* already released */
     }
   }
 
@@ -121,7 +178,6 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
           className="block h-48 w-full cursor-crosshair touch-none rounded-2xl"
           aria-label="Draw your signature"
         />
-        {/* Baseline + hint, hidden once drawing starts */}
         <div className="pointer-events-none absolute inset-x-8 bottom-12 border-b border-dashed border-border" />
         {!hasInk && (
           <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted">

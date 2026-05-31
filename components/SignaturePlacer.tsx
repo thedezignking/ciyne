@@ -3,11 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SignaturePlacement } from '@/types'
 
+type NormBox = { x: number; y: number; width: number; height: number }
+
 type SignaturePlacerProps = {
   signatureDataUrl: string
   canvasWidth: number
   canvasHeight: number
   onPlacementChange: (placement: Omit<SignaturePlacement, 'pageIndex'>) => void
+  /** AI-detected target (normalized 0..1) to snap the signature onto. */
+  target?: NormBox | null
+  /** Bumped to re-apply the same target. */
+  targetNonce?: number
 }
 
 type Rect = { x: number; y: number; width: number; height: number }
@@ -21,11 +27,15 @@ function clientXY(e: MouseEvent | TouchEvent): { cx: number; cy: number } | null
   return { cx: e.clientX, cy: e.clientY }
 }
 
+const clamp = (min: number, max: number, v: number) => Math.max(min, Math.min(max, v))
+
 export default function SignaturePlacer({
   signatureDataUrl,
   canvasWidth,
   canvasHeight,
   onPlacementChange,
+  target,
+  targetNonce,
 }: SignaturePlacerProps) {
   const [rect, setRect] = useState<Rect | null>(null)
   const dragRef = useRef<{
@@ -35,6 +45,7 @@ export default function SignaturePlacer({
     startRect: Rect
   } | null>(null)
   const rectRef = useRef<Rect | null>(null)
+  const aspectRef = useRef(0.4) // signature height / width
 
   const emit = useCallback(
     (r: Rect) => {
@@ -43,25 +54,49 @@ export default function SignaturePlacer({
     [canvasWidth, canvasHeight, onPlacementChange]
   )
 
+  const applyRect = useCallback(
+    (r: Rect) => {
+      setRect(r)
+      rectRef.current = r
+      emit(r)
+    },
+    [emit]
+  )
+
   useEffect(() => {
     const img = new Image()
     img.onload = () => {
-      const maxW = canvasWidth * 0.4
-      const scale = maxW / img.naturalWidth
-      const width = img.naturalWidth * scale
-      const height = img.naturalHeight * scale
-      const initial: Rect = {
-        x: canvasWidth * 0.1,
-        y: canvasHeight * 0.65,
-        width,
-        height,
-      }
-      setRect(initial)
-      rectRef.current = initial
-      emit(initial)
+      const aspect = img.naturalHeight / img.naturalWidth
+      aspectRef.current = aspect
+      const width = canvasWidth * 0.4
+      const height = width * aspect
+      applyRect({ x: canvasWidth * 0.1, y: canvasHeight * 0.65, width, height })
     }
     img.src = signatureDataUrl
-  }, [signatureDataUrl, canvasWidth, canvasHeight, emit])
+  }, [signatureDataUrl, canvasWidth, canvasHeight, applyRect])
+
+  // Snap onto an AI-detected field.
+  useEffect(() => {
+    if (!target || targetNonce === undefined) return
+    const aspect = aspectRef.current
+    const boxX = target.x * canvasWidth
+    const boxY = target.y * canvasHeight
+    const boxW = target.width * canvasWidth
+    const boxH = target.height * canvasHeight
+
+    let width = boxW * 0.96
+    let height = width * aspect
+    const maxH = boxH * 1.8
+    if (height > maxH && maxH > 0) {
+      height = maxH
+      width = height / aspect
+    }
+    // Centered horizontally; sit on the line (bottom aligned to the field).
+    const x = clamp(0, Math.max(0, canvasWidth - width), boxX + (boxW - width) / 2)
+    const y = clamp(0, Math.max(0, canvasHeight - height), boxY + boxH - height)
+    applyRect({ x, y, width, height })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetNonce])
 
   useEffect(() => {
     function onMove(e: MouseEvent | TouchEvent) {
@@ -73,22 +108,25 @@ export default function SignaturePlacer({
       const dx = pt.cx - d.startX
       const dy = pt.cy - d.startY
 
-      let next: Rect
-      if (d.mode === 'move') {
-        next = {
-          ...d.startRect,
-          x: Math.max(0, Math.min(canvasWidth - d.startRect.width, d.startRect.x + dx)),
-          y: Math.max(0, Math.min(canvasHeight - d.startRect.height, d.startRect.y + dy)),
+      setRect((prev) => {
+        if (!prev) return prev
+        let next: Rect
+        if (d.mode === 'move') {
+          next = {
+            ...d.startRect,
+            x: clamp(0, canvasWidth - d.startRect.width, d.startRect.x + dx),
+            y: clamp(0, canvasHeight - d.startRect.height, d.startRect.y + dy),
+          }
+        } else {
+          const width = Math.max(40, Math.min(canvasWidth - d.startRect.x, d.startRect.width + dx))
+          const aspect = d.startRect.height / d.startRect.width
+          const height = width * aspect
+          next = { ...d.startRect, width, height: Math.min(height, canvasHeight - d.startRect.y) }
         }
-      } else {
-        const width = Math.max(40, Math.min(canvasWidth - d.startRect.x, d.startRect.width + dx))
-        const aspect = d.startRect.height / d.startRect.width
-        const height = width * aspect
-        next = { ...d.startRect, width, height: Math.min(height, canvasHeight - d.startRect.y) }
-      }
-      setRect(next)
-      rectRef.current = next
-      emit(next)
+        rectRef.current = next
+        emit(next)
+        return next
+      })
     }
 
     function onEnd() {
@@ -109,30 +147,26 @@ export default function SignaturePlacer({
     }
   }, [canvasWidth, canvasHeight, emit])
 
-  const startDrag = useCallback(
-    (mode: 'move' | 'resize', e: React.MouseEvent | React.TouchEvent) => {
-      const r = rectRef.current
-      if (!r) return
-      e.preventDefault()
-      e.stopPropagation()
-      const pt = clientXY(e.nativeEvent)
-      if (!pt) return
-      dragRef.current = { mode, startX: pt.cx, startY: pt.cy, startRect: r }
-    },
-    []
-  )
+  const startDrag = useCallback((mode: 'move' | 'resize', e: React.MouseEvent | React.TouchEvent) => {
+    const r = rectRef.current
+    if (!r) return
+    e.preventDefault()
+    e.stopPropagation()
+    const pt = clientXY(e.nativeEvent)
+    if (!pt) return
+    dragRef.current = { mode, startX: pt.cx, startY: pt.cy, startRect: r }
+  }, [])
 
   if (!rect) return null
 
   return (
     <div
-      className="absolute left-0 top-0"
+      className="pointer-events-none absolute left-0 top-0"
       style={{ width: canvasWidth, height: canvasHeight, touchAction: 'none' }}
       aria-label="Drag and resize your signature"
     >
-      {/* Move target */}
       <div
-        className="absolute cursor-move select-none"
+        className="pointer-events-auto absolute cursor-move select-none"
         style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height, touchAction: 'none' }}
         onMouseDown={(e) => startDrag('move', e)}
         onTouchStart={(e) => startDrag('move', e)}
@@ -145,7 +179,6 @@ export default function SignaturePlacer({
           className="h-full w-full object-contain pointer-events-none select-none"
         />
 
-        {/* Resize handle */}
         <div
           role="presentation"
           className="absolute -bottom-3 -right-3 flex h-8 w-8 cursor-se-resize items-center justify-center rounded-full border-2 border-accent-600 bg-white shadow-sm"

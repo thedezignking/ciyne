@@ -53,6 +53,52 @@ body {
   }
 }
 
+/* Step transitions (signing flow) */
+@keyframes step-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes step-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.step-forward {
+  animation: step-in-right 0.45s var(--ease-out-quint) both;
+}
+.step-back {
+  animation: step-in-left 0.45s var(--ease-out-quint) both;
+}
+
+/* Success check pop (signed confirmation) */
+@keyframes check-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.animate-check-pop {
+  animation: check-pop 0.5s var(--ease-out-quint) both;
+}
+
 .animate-rise {
   opacity: 0;
   animation: rise 0.9s var(--ease-out-quint) forwards;
@@ -104,6 +150,13 @@ body {
   .sig-path {
     stroke-dashoffset: 0 !important;
     animation: none !important;
+  }
+  .step-forward,
+  .step-back,
+  .animate-check-pop {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
   [data-reveal] {
     opacity: 1;
