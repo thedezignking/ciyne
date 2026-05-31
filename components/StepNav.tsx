@@ -42,7 +42,7 @@ export default function StepNav({ current, maxReached, onStepClick }: StepNavPro
             <span
               className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-all ${
                 isActive
-                  ? 'bg-accent-500 text-[#1a2332] shadow-sm'
+                  ? 'bg-accent-600 text-white shadow-sm'
                   : isComplete
                     ? 'bg-accent-500/15 text-accent-600'
                     : 'bg-[var(--step-inactive)] text-[var(--text-muted)]'
@@ -54,7 +54,7 @@ export default function StepNav({ current, maxReached, onStepClick }: StepNavPro
                 <Icon className="h-4 w-4" aria-hidden />
               )}
               {isActive && (
-                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent-500 ring-2 ring-white" />
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent-600 ring-2 ring-white" />
               )}
             </span>
             <span className="min-w-0 flex-1">
@@ -71,7 +71,7 @@ export default function StepNav({ current, maxReached, onStepClick }: StepNavPro
             </span>
             <span
               className={`text-xs font-medium tabular-nums ${
-                isActive ? 'text-accent-500' : 'text-[var(--text-muted)]'
+                isActive ? 'text-accent-600' : 'text-[var(--text-muted)]'
               }`}
             >
               {idx + 1}/{STEPS.length}
