@@ -8,13 +8,11 @@ type SignaturePadProps = {
   onSignature: (dataUrl: string) => void
 }
 
-const INK = '#1a2332'
-const MIN_WIDTH = 1.1
-const MAX_WIDTH = 3.8
-// How quickly the stroke thins as the pen moves faster.
-const VELOCITY_FACTOR = 0.42
-// Exponential smoothing on the width so transitions are buttery.
-const WIDTH_SMOOTHING = 0.45
+const INK = '#2b3a67'
+const MIN_WIDTH = 2.0
+const MAX_WIDTH = 5.5
+const VELOCITY_FACTOR = 0.35
+const WIDTH_SMOOTHING = 0.4
 
 type Pt = { x: number; y: number; t: number }
 
@@ -95,7 +93,7 @@ export default function SignaturePad({ onSignature }: SignaturePadProps) {
     const p = pos(e)
     points.current = [p]
     lastMid.current = { x: p.x, y: p.y }
-    width.current = MAX_WIDTH * 0.6
+    width.current = MAX_WIDTH * 0.65
     canvasRef.current?.setPointerCapture(e.pointerId)
 
     // Seed dot so a tap leaves a mark.
