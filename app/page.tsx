@@ -23,8 +23,13 @@ export default function HomePage() {
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
   const [placement, setPlacement] = useState<SignaturePlacement | null>(null)
 
+  const [direction, setDirection] = useState<'forward' | 'back'>('forward')
+
   const goToStep = useCallback((s: AppStep) => {
-    setStep(s)
+    setStep((prev) => {
+      setDirection(s >= prev ? 'forward' : 'back')
+      return s
+    })
     setMaxReached((prev) => (s > prev ? s : prev))
   }, [])
 
@@ -78,6 +83,8 @@ export default function HomePage() {
   }
 
   // ---- Focus / signing view ----
+  const stepAnim = direction === 'forward' ? 'step-forward' : 'step-back'
+
   return (
     <div
       className="flex min-h-screen flex-col"
@@ -119,7 +126,7 @@ export default function HomePage() {
             maxReached={maxReached}
             onStepClick={(s) => {
               if (s === 1 || (s === 2 && pdfFile) || (s === 3 && signatureDataUrl)) {
-                setStep(s)
+                goToStep(s)
               }
             }}
           />
@@ -127,7 +134,8 @@ export default function HomePage() {
 
         {step === 1 && (
           <StepCard
-            key="step1"
+            key={`step1-${step}`}
+            className={stepAnim}
             n={1}
             icon={FileText}
             title="Upload your PDF"
@@ -147,7 +155,8 @@ export default function HomePage() {
 
         {step === 2 && pdfFile && (
           <StepCard
-            key="step2"
+            key={`step2-${step}`}
+            className={stepAnim}
             n={2}
             icon={PenLine}
             title="Add your signature"
@@ -167,10 +176,11 @@ export default function HomePage() {
 
         {step === 3 && pdfFile && signatureDataUrl && (
           <StepCard
-            key="step3"
+            key={`step3-${step}`}
+            className={stepAnim}
             n={3}
             icon={MousePointer2}
-            title="Place & download"
+            title="Sign your document"
             desc="Navigate to any page, drag your signature into position, then download."
           >
             <PreviewWorkspace
@@ -199,16 +209,18 @@ function StepCard({
   title,
   desc,
   children,
+  className = '',
 }: {
   n: number
   icon: LucideIcon
   title: string
   desc: string
   children: React.ReactNode
+  className?: string
 }) {
   return (
     <section
-      className="animate-rise overflow-hidden rounded-3xl border border-black/5 bg-surface"
+      className={`overflow-hidden rounded-3xl border border-black/5 bg-surface ${className}`}
       style={{ boxShadow: 'var(--shadow-float)' }}
     >
       <div className="flex items-start gap-4 border-b border-border/70 px-6 pb-5 pt-6 sm:px-8">

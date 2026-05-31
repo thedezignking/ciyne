@@ -4,9 +4,9 @@ import { FileText, PenLine, MousePointer2, Check } from 'lucide-react'
 import type { AppStep } from '@/types'
 
 const STEPS = [
-  { id: 1 as AppStep, label: 'Upload PDF', icon: FileText },
+  { id: 1 as AppStep, label: 'Document', icon: FileText },
   { id: 2 as AppStep, label: 'Signature', icon: PenLine },
-  { id: 3 as AppStep, label: 'Place & sign', icon: MousePointer2 },
+  { id: 3 as AppStep, label: 'Sign', icon: MousePointer2 },
 ]
 
 type ProgressRailProps = {
