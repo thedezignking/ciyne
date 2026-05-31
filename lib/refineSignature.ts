@@ -9,13 +9,15 @@ const COLORS: Record<'navy' | 'black', readonly [number, number, number]> = {
  * Thickens a signature and optionally recolors it.
  *
  * Thickening is done by stamping the source image at a ring of small offsets,
- * which preserves the original colors and anti-aliasing. With 'navy' or 'black'
+ * which preserves the original colors and anti-aliasing. The `weight` param
+ * (0.5–2.0, default 1.0) scales the dilation radius. With 'navy' or 'black'
  * every inked pixel is then recolored for a clean, consistent look; with
  * 'original' the real ink colors are kept (useful for photos).
  */
 export async function refineSignature(
   dataUrl: string,
-  color: InkColor = 'navy'
+  color: InkColor = 'navy',
+  weight = 1.0
 ): Promise<string> {
   const img = await loadImg(dataUrl)
   const w = img.naturalWidth
@@ -28,7 +30,7 @@ export async function refineSignature(
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!
 
   // Stroke thickening: stamp the source at a ring of offsets.
-  const r = Math.max(1, Math.round(Math.min(w, h) * 0.008))
+  const r = Math.max(1, Math.round(Math.min(w, h) * 0.008 * weight))
   for (let dy = -r; dy <= r; dy++) {
     for (let dx = -r; dx <= r; dx++) {
       if (dx * dx + dy * dy > r * r) continue // keep the stamp round

@@ -32,6 +32,7 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
   const [mode, setMode] = useState<Mode>('draw')
   const [uploadSource, setUploadSource] = useState<File | null>(null)
   const [color, setColor] = useState<InkColor>('navy')
+  const [weight, setWeight] = useState(1.0)
 
   // The most recent raw (pre-refine) signature, so we can re-color on demand.
   const rawRef = useRef<string | null>(null)
@@ -41,8 +42,8 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
 
   // Type / upload go through the refine step (thicken + recolor).
   const applyRefine = useCallback(
-    async (raw: string, ink: InkColor) => {
-      const refined = await refineSignature(raw, ink)
+    async (raw: string, ink: InkColor, w: number) => {
+      const refined = await refineSignature(raw, ink, w)
       onSignature(refined)
     },
     [onSignature]
@@ -51,16 +52,16 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
   const handleRefined = useCallback(
     (dataUrl: string) => {
       rawRef.current = dataUrl
-      void applyRefine(dataUrl, color)
+      void applyRefine(dataUrl, color, weight)
     },
-    [applyRefine, color]
+    [applyRefine, color, weight]
   )
 
-  // Re-color the existing type/upload signature when the color changes.
+  // Re-refine when color or weight changes.
   useEffect(() => {
-    if (mode !== 'draw' && rawRef.current) void applyRefine(rawRef.current, color)
+    if (mode !== 'draw' && rawRef.current) void applyRefine(rawRef.current, color, weight)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [color])
+  }, [color, weight])
 
   const switchMode = (next: Mode) => {
     if (next === mode) return
@@ -109,7 +110,7 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
 
       {mode === 'type' && (
         <div className="space-y-4">
-          <InkSelector options={colorOptions} value={color} onChange={setColor} />
+          <InkSelector options={colorOptions} color={color} onColorChange={setColor} weight={weight} onWeightChange={setWeight} />
           <SignatureTyper onSignature={handleRefined} />
         </div>
       )}
@@ -125,7 +126,7 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
           />
           {uploadSource && (
             <div className="space-y-4">
-              <InkSelector options={colorOptions} value={color} onChange={setColor} />
+              <InkSelector options={colorOptions} color={color} onColorChange={setColor} weight={weight} onWeightChange={setWeight} />
               <SignatureCleaner
                 sourceFile={uploadSource}
                 onCleaned={(_blob, dataUrl) => handleRefined(dataUrl)}
@@ -140,25 +141,30 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
 
 function InkSelector({
   options,
-  value,
-  onChange,
+  color,
+  onColorChange,
+  weight,
+  onWeightChange,
 }: {
   options: InkColor[]
-  value: InkColor
-  onChange: (c: InkColor) => void
+  color: InkColor
+  onColorChange: (c: InkColor) => void
+  weight: number
+  onWeightChange: (w: number) => void
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <span className="text-xs font-semibold uppercase tracking-wide text-secondary">Ink</span>
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+      {/* Color */}
       <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-secondary">Ink</span>
         {options.map((opt) => {
-          const active = value === opt
+          const active = color === opt
           if (opt === 'original') {
             return (
               <button
                 key={opt}
                 type="button"
-                onClick={() => onChange('original')}
+                onClick={() => onColorChange('original')}
                 aria-pressed={active}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
                   active
@@ -171,7 +177,7 @@ function InkSelector({
                   style={{ background: 'conic-gradient(red, orange, gold, green, blue, violet, red)' }}
                   aria-hidden
                 />
-                Original color
+                Original
               </button>
             )
           }
@@ -179,22 +185,33 @@ function InkSelector({
             <button
               key={opt}
               type="button"
-              onClick={() => onChange(opt)}
+              onClick={() => onColorChange(opt)}
               aria-pressed={active}
               aria-label={`${opt} ink`}
-              className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-transform ${
+              className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-transform ${
                 active ? 'border-accent-600 scale-110' : 'border-border hover:border-border-strong'
               }`}
             >
-              <span
-                className="block h-5 w-5 rounded-full"
-                style={{ background: SWATCH[opt] }}
-                aria-hidden
-              />
+              <span className="block h-4 w-4 rounded-full" style={{ background: SWATCH[opt] }} aria-hidden />
             </button>
           )
         })}
       </div>
+
+      {/* Weight */}
+      <label className="flex items-center gap-2 text-xs font-medium text-secondary">
+        <span className="font-semibold uppercase tracking-wide">Weight</span>
+        <input
+          type="range"
+          min={0.5}
+          max={2}
+          step={0.05}
+          value={weight}
+          onChange={(e) => onWeightChange(Number(e.target.value))}
+          className="h-1.5 w-24 cursor-pointer accent-accent-600"
+          aria-label="Stroke thickness"
+        />
+      </label>
     </div>
   )
 }
