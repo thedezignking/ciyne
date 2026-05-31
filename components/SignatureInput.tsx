@@ -23,10 +23,9 @@ const TABS: { id: Mode; label: string; icon: typeof PenLine }[] = [
   { id: 'upload', label: 'Upload photo', icon: ImageUp },
 ]
 
-const SWATCH: Record<InkColor, string> = {
+const SWATCH: Record<'navy' | 'black', string> = {
   navy: '#2b3a67',
   black: '#1a1a1e',
-  original: 'original',
 }
 
 export default function SignatureInput({ onSignature, onClear }: SignatureInputProps) {
@@ -37,6 +36,10 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
   // The most recent raw (pre-refine) signature, so we can re-color on demand.
   const rawRef = useRef<string | null>(null)
 
+  // Draw mode bakes its own color + thickness in — pass it straight through.
+  const handleDrawn = useCallback((dataUrl: string) => onSignature(dataUrl), [onSignature])
+
+  // Type / upload go through the refine step (thicken + recolor).
   const applyRefine = useCallback(
     async (raw: string, ink: InkColor) => {
       const refined = await refineSignature(raw, ink)
@@ -45,7 +48,7 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
     [onSignature]
   )
 
-  const handleSignature = useCallback(
+  const handleRefined = useCallback(
     (dataUrl: string) => {
       rawRef.current = dataUrl
       void applyRefine(dataUrl, color)
@@ -53,9 +56,9 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
     [applyRefine, color]
   )
 
-  // Re-color the existing signature when the color choice changes.
+  // Re-color the existing type/upload signature when the color changes.
   useEffect(() => {
-    if (rawRef.current) void applyRefine(rawRef.current, color)
+    if (mode !== 'draw' && rawRef.current) void applyRefine(rawRef.current, color)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [color])
 
@@ -64,12 +67,10 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
     setMode(next)
     setUploadSource(null)
     rawRef.current = null
-    // 'original' only makes sense for photos — reset to navy when leaving upload.
     if (next !== 'upload' && color === 'original') setColor('navy')
     onClear()
   }
 
-  // The color options available in the current mode.
   const colorOptions: InkColor[] = mode === 'upload' ? ['navy', 'black', 'original'] : ['navy', 'black']
 
   return (
@@ -103,60 +104,15 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
         })}
       </div>
 
-      {/* Ink color */}
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-xs font-semibold uppercase tracking-wide text-secondary">Ink</span>
-        <div className="flex items-center gap-2">
-          {colorOptions.map((opt) => {
-            const active = color === opt
-            if (opt === 'original') {
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setColor('original')}
-                  aria-pressed={active}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    active
-                      ? 'border-accent-600 bg-accent-50 text-accent-600'
-                      : 'border-border bg-surface text-secondary hover:text-primary'
-                  }`}
-                >
-                  <span
-                    className="block h-3.5 w-3.5 rounded-full"
-                    style={{ background: 'conic-gradient(red, orange, gold, green, blue, violet, red)' }}
-                    aria-hidden
-                  />
-                  Original color
-                </button>
-              )
-            }
-            return (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => setColor(opt)}
-                aria-pressed={active}
-                aria-label={`${opt} ink`}
-                className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-transform ${
-                  active ? 'border-accent-600 scale-110' : 'border-border hover:border-border-strong'
-                }`}
-              >
-                <span
-                  className="block h-5 w-5 rounded-full"
-                  style={{ background: SWATCH[opt] }}
-                  aria-hidden
-                />
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
       {/* Panel */}
-      {mode === 'draw' && <SignaturePad onSignature={handleSignature} />}
+      {mode === 'draw' && <SignaturePad onSignature={handleDrawn} />}
 
-      {mode === 'type' && <SignatureTyper onSignature={handleSignature} />}
+      {mode === 'type' && (
+        <div className="space-y-4">
+          <InkSelector options={colorOptions} value={color} onChange={setColor} />
+          <SignatureTyper onSignature={handleRefined} />
+        </div>
+      )}
 
       {mode === 'upload' && (
         <div className="space-y-6">
@@ -168,13 +124,77 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
             }}
           />
           {uploadSource && (
-            <SignatureCleaner
-              sourceFile={uploadSource}
-              onCleaned={(_blob, dataUrl) => handleSignature(dataUrl)}
-            />
+            <div className="space-y-4">
+              <InkSelector options={colorOptions} value={color} onChange={setColor} />
+              <SignatureCleaner
+                sourceFile={uploadSource}
+                onCleaned={(_blob, dataUrl) => handleRefined(dataUrl)}
+              />
+            </div>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function InkSelector({
+  options,
+  value,
+  onChange,
+}: {
+  options: InkColor[]
+  value: InkColor
+  onChange: (c: InkColor) => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-xs font-semibold uppercase tracking-wide text-secondary">Ink</span>
+      <div className="flex items-center gap-2">
+        {options.map((opt) => {
+          const active = value === opt
+          if (opt === 'original') {
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => onChange('original')}
+                aria-pressed={active}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  active
+                    ? 'border-accent-600 bg-accent-50 text-accent-600'
+                    : 'border-border bg-surface text-secondary hover:text-primary'
+                }`}
+              >
+                <span
+                  className="block h-3.5 w-3.5 rounded-full"
+                  style={{ background: 'conic-gradient(red, orange, gold, green, blue, violet, red)' }}
+                  aria-hidden
+                />
+                Original color
+              </button>
+            )
+          }
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => onChange(opt)}
+              aria-pressed={active}
+              aria-label={`${opt} ink`}
+              className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-transform ${
+                active ? 'border-accent-600 scale-110' : 'border-border hover:border-border-strong'
+              }`}
+            >
+              <span
+                className="block h-5 w-5 rounded-full"
+                style={{ background: SWATCH[opt] }}
+                aria-hidden
+              />
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
