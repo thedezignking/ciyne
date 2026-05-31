@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { PenLine, Type, ImageUp } from 'lucide-react'
 import SignaturePad from '@/components/SignaturePad'
 import SignatureTyper from '@/components/SignatureTyper'
 import SignatureUploader from '@/components/SignatureUploader'
 import SignatureCleaner from '@/components/SignatureCleaner'
+import { refineSignature } from '@/lib/refineSignature'
 
 type Mode = 'draw' | 'type' | 'upload'
 
@@ -25,6 +26,14 @@ const TABS: { id: Mode; label: string; icon: typeof PenLine }[] = [
 export default function SignatureInput({ onSignature, onClear }: SignatureInputProps) {
   const [mode, setMode] = useState<Mode>('draw')
   const [uploadSource, setUploadSource] = useState<File | null>(null)
+
+  const handleSignature = useCallback(
+    async (dataUrl: string) => {
+      const refined = await refineSignature(dataUrl)
+      onSignature(refined)
+    },
+    [onSignature]
+  )
 
   const switchMode = (next: Mode) => {
     if (next === mode) return
@@ -65,9 +74,9 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
       </div>
 
       {/* Panel */}
-      {mode === 'draw' && <SignaturePad onSignature={onSignature} />}
+      {mode === 'draw' && <SignaturePad onSignature={(d) => void handleSignature(d)} />}
 
-      {mode === 'type' && <SignatureTyper onSignature={onSignature} />}
+      {mode === 'type' && <SignatureTyper onSignature={(d) => void handleSignature(d)} />}
 
       {mode === 'upload' && (
         <div className="space-y-6">
@@ -80,7 +89,7 @@ export default function SignatureInput({ onSignature, onClear }: SignatureInputP
           {uploadSource && (
             <SignatureCleaner
               sourceFile={uploadSource}
-              onCleaned={(_blob, dataUrl) => onSignature(dataUrl)}
+              onCleaned={(_blob, dataUrl) => void handleSignature(dataUrl)}
             />
           )}
         </div>
