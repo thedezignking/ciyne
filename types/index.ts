@@ -10,6 +10,19 @@ export type SignaturePlacement = {
 
 export type ProcessPayload = SignaturePlacement & {
   signatureImage: string
+  /** When set, embed the signature on every listed placement (sign-all). */
+  placements?: SignaturePlacement[]
+}
+
+/** A signature/date/initial field located on a page by AI, in normalized
+ * [0..1] coordinates relative to the page (origin top-left). */
+export type DetectedField = {
+  label: string
+  x: number
+  y: number
+  width: number
+  height: number
+  confidence?: number
 }
 
 export type AppStep = 1 | 2 | 3

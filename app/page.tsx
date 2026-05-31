@@ -22,6 +22,7 @@ export default function HomePage() {
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
   const [placement, setPlacement] = useState<SignaturePlacement | null>(null)
+  const [batchPlacements, setBatchPlacements] = useState<SignaturePlacement[] | null>(null)
 
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
 
@@ -53,21 +54,30 @@ export default function HomePage() {
   const handleSignature = useCallback((dataUrl: string) => {
     setSignatureDataUrl(dataUrl)
     setPlacement(null)
+    setBatchPlacements(null)
   }, [])
 
   const clearSignature = useCallback(() => {
     setSignatureDataUrl(null)
     setPlacement(null)
+    setBatchPlacements(null)
   }, [])
 
   const handlePlacement = useCallback((p: SignaturePlacement) => {
     setPlacement(p)
   }, [])
 
-  const processPayload: ProcessPayload | null =
-    pdfFile && signatureDataUrl && placement
-      ? { ...placement, signatureImage: signatureDataUrl }
-      : null
+  const handleSignAll = useCallback((pls: SignaturePlacement[] | null) => {
+    setBatchPlacements(pls && pls.length > 0 ? pls : null)
+  }, [])
+
+  const processPayload: ProcessPayload | null = !pdfFile || !signatureDataUrl
+    ? null
+    : batchPlacements && batchPlacements.length > 0
+      ? { ...batchPlacements[0], signatureImage: signatureDataUrl, placements: batchPlacements }
+      : placement
+        ? { ...placement, signatureImage: signatureDataUrl }
+        : null
 
   // ---- Landing view ----
   if (!focusMode) {
@@ -187,9 +197,10 @@ export default function HomePage() {
               pdfFile={pdfFile}
               signatureDataUrl={signatureDataUrl}
               onPlacement={handlePlacement}
+              onSignAll={handleSignAll}
             />
             <div className="mt-8 border-t border-border pt-6">
-              <DownloadButton pdfFile={pdfFile} payload={processPayload} disabled={!placement} />
+              <DownloadButton pdfFile={pdfFile} payload={processPayload} disabled={!processPayload} />
             </div>
           </StepCard>
         )}

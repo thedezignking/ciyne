@@ -44,6 +44,9 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
       formData.append('height', String(payload.height))
       formData.append('canvasWidth', String(payload.canvasWidth))
       formData.append('canvasHeight', String(payload.canvasHeight))
+      if (payload.placements && payload.placements.length > 0) {
+        formData.append('placements', JSON.stringify(payload.placements))
+      }
 
       const res = await fetch('/api/process', { method: 'POST', body: formData })
       if (!res.ok) {

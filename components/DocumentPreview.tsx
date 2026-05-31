@@ -12,6 +12,7 @@ type DocumentPreviewProps = {
   onReady?: () => void
   overlay?: (width: number, height: number) => React.ReactNode
   onPageChange?: (page: number) => void
+  onDimensions?: (width: number, height: number) => void
 }
 
 export default function DocumentPreview({
@@ -22,6 +23,7 @@ export default function DocumentPreview({
   onReady,
   overlay,
   onPageChange,
+  onDimensions,
 }: DocumentPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -71,6 +73,7 @@ export default function DocumentPreview({
       const rect = canvas.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) {
         setDimensions({ width: rect.width, height: rect.height })
+        onDimensions?.(rect.width, rect.height)
       }
     }
 
@@ -78,7 +81,7 @@ export default function DocumentPreview({
     const observer = new ResizeObserver(measure)
     observer.observe(canvas)
     return () => observer.disconnect()
-  }, [loading])
+  }, [loading, onDimensions])
 
   const canPrev = pageIndex > 0
   const canNext = pageCount !== null && pageIndex < pageCount - 1
