@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Download, CheckCircle, Check, RotateCcw } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Download, Check, RotateCcw, Share2 } from 'lucide-react'
 import type { ProcessPayload } from '@/types'
 
 type DownloadButtonProps = {
@@ -21,6 +21,22 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState<ReadyState | null>(null)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [canShareFiles, setCanShareFiles] = useState(false)
+
+  // Detect file-sharing support after mount (mobile) so we can offer it as a
+  // secondary action without making it the default — download stays primary.
+  useEffect(() => {
+    try {
+      const probe = new File([new Blob()], 'probe.pdf', { type: 'application/pdf' })
+      setCanShareFiles(
+        typeof navigator !== 'undefined' &&
+          typeof navigator.canShare === 'function' &&
+          navigator.canShare({ files: [probe] })
+      )
+    } catch {
+      setCanShareFiles(false)
+    }
+  }, [])
 
   async function handleProcess() {
     if (!payload) return
@@ -71,25 +87,11 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
     }
   }
 
-  async function handleSave() {
+  // Direct download — the default action. Called from a fresh user tap so
+  // iOS Safari keeps the gesture context valid.
+  function handleDownload() {
     if (!ready) return
-    const { url, filename, file } = ready
-
-    // Web Share API — works on iOS 15.1+/Android Chrome with HTTPS.
-    // This is called from a fresh user tap so gesture context is valid.
-    if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: filename })
-        setSavedAt(new Date())
-        return
-      } catch (err) {
-        // User dismissed share sheet — not an error
-        if (err instanceof DOMException && err.name === 'AbortError') return
-        // Otherwise fall through to anchor
-      }
-    }
-
-    // Desktop and Android — anchor download
+    const { url, filename } = ready
     const a = document.createElement('a')
     a.href = url
     a.download = filename
@@ -97,6 +99,24 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
     a.click()
     document.body.removeChild(a)
     setSavedAt(new Date())
+  }
+
+  // Explicit, opt-in share sheet for sending the PDF to another app.
+  async function handleShare() {
+    if (!ready) return
+    const { filename, file } = ready
+    if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: filename })
+        setSavedAt(new Date())
+        return
+      } catch (err) {
+        // User dismissed the share sheet — not an error.
+        if (err instanceof DOMException && err.name === 'AbortError') return
+      }
+    }
+    // No share support — fall back to a download.
+    handleDownload()
   }
 
   // Signed & saved — show a confirmation worth screenshotting.
@@ -120,12 +140,22 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
             type="button"
-            onClick={() => void handleSave()}
+            onClick={handleDownload}
             className="focus-accent inline-flex items-center justify-center gap-2 rounded-full border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-primary transition-colors hover:border-border-strong"
           >
             <Download className="h-4 w-4" aria-hidden />
             Download again
           </button>
+          {canShareFiles && (
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              className="focus-accent inline-flex items-center justify-center gap-2 rounded-full border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-primary transition-colors hover:border-border-strong"
+            >
+              <Share2 className="h-4 w-4" aria-hidden />
+              Share
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void handleProcess()}
@@ -155,12 +185,22 @@ export default function DownloadButton({ pdfFile, payload, disabled }: DownloadB
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
             type="button"
-            onClick={() => void handleSave()}
+            onClick={handleDownload}
             className="focus-accent inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent-600 px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:opacity-90 sm:w-auto"
           >
-            <CheckCircle className="h-4 w-4" aria-hidden />
-            Save signed PDF
+            <Download className="h-4 w-4" aria-hidden />
+            Download signed PDF
           </button>
+          {canShareFiles && (
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              className="focus-accent inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-surface px-7 py-3.5 text-sm font-semibold text-primary transition-colors hover:border-border-strong sm:w-auto"
+            >
+              <Share2 className="h-4 w-4" aria-hidden />
+              Share
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void handleProcess()}
