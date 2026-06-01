@@ -30,14 +30,38 @@ export async function runVision(input: VisionInput): Promise<VisionResult> {
   const geminiKey = process.env.GEMINI_API_KEY
   const anthropicKey = process.env.ANTHROPIC_API_KEY
 
-  if (geminiKey) return runGemini(input, geminiKey)
-  if (anthropicKey) return runAnthropic(input, anthropicKey)
+  // Build the provider chain: Gemini (free) first, Anthropic as fallback.
+  const attempts: (() => Promise<VisionResult>)[] = []
+  if (geminiKey) attempts.push(() => runGemini(input, geminiKey))
+  if (anthropicKey) attempts.push(() => runAnthropic(input, anthropicKey))
+
+  if (attempts.length === 0) {
+    return {
+      ok: false,
+      configured: false,
+      status: 503,
+      error: 'AI is not configured on this deployment.',
+    }
+  }
+
+  // Try each provider; if one fails (quota, billing, outage), fall through to
+  // the next. Only if all fail do we return a single, sanitized message so raw
+  // provider text (e.g. billing notices) never reaches the UI.
+  let last: VisionResult | null = null
+  for (const attempt of attempts) {
+    const result = await attempt()
+    if (result.ok) return result
+    last = result
+  }
 
   return {
     ok: false,
-    configured: false,
-    status: 503,
-    error: 'AI is not configured on this deployment.',
+    configured: true,
+    status: last?.status ?? 502,
+    error:
+      last?.status === 429
+        ? 'The AI service is busy right now. Please try again in a moment.'
+        : 'AI assistance is temporarily unavailable.',
   }
 }
 

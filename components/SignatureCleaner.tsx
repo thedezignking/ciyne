@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Wand2 } from 'lucide-react'
+import { Wand2, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { DEFAULT_THRESHOLD, removeBackground } from '@/lib/removeBackground'
 
 type SignatureCleanerProps = {
@@ -14,6 +14,7 @@ export default function SignatureCleaner({ sourceFile, onCleaned }: SignatureCle
   const [sensitivity, setSensitivity] = useState(DEFAULT_THRESHOLD)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [showAdjust, setShowAdjust] = useState(false)
 
   const onCleanedRef = useRef(onCleaned)
   onCleanedRef.current = onCleaned
@@ -70,25 +71,43 @@ export default function SignatureCleaner({ sourceFile, onCleaned }: SignatureCle
         ) : null}
       </div>
 
-      {/* Fine-tune */}
-      <div className="mt-4">
-        <div className="mb-1.5 flex items-center justify-between text-xs">
-          <span className="font-medium text-secondary">Keep more</span>
-          <span className="font-medium text-secondary">Remove more</span>
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={sensitivity}
-          onChange={(e) => setSensitivity(Number(e.target.value))}
-          className="h-1.5 w-full cursor-pointer accent-accent-500"
-          aria-label="Background removal sensitivity"
-        />
-        <p className="mt-2 text-xs text-muted">
-          Auto-tuned for you. Drag left if parts of your signature disappear, right if any
-          background remains.
-        </p>
+      {/* Fine-tune — hidden by default; the auto result is usually enough. */}
+      <div className="mt-4 border-t border-border/70 pt-3">
+        <button
+          type="button"
+          onClick={() => setShowAdjust((v) => !v)}
+          aria-expanded={showAdjust}
+          className="focus-accent flex w-full items-center justify-between rounded-lg text-xs font-semibold text-secondary transition-colors hover:text-primary"
+        >
+          <span className="inline-flex items-center gap-2">
+            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+            Fine-tune the cleanup
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${showAdjust ? 'rotate-180' : ''}`}
+            aria-hidden
+          />
+        </button>
+        {showAdjust && (
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="font-medium text-secondary">Keep more</span>
+              <span className="font-medium text-secondary">Remove more</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={sensitivity}
+              onChange={(e) => setSensitivity(Number(e.target.value))}
+              className="h-1.5 w-full cursor-pointer accent-accent-500"
+              aria-label="Background removal sensitivity"
+            />
+            <p className="mt-2 text-xs text-muted">
+              Drag left if parts of your signature disappear, right if any background remains.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

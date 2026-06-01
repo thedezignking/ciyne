@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import {
   Plus_Jakarta_Sans,
   Dancing_Script,
@@ -44,6 +44,16 @@ export const metadata: Metadata = {
       'Upload a PDF and your signature. Drag to position. Download the signed document instantly.',
     type: 'website',
   },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  // Let the page draw under the notch/safe areas on modern phones, and tint
+  // the browser chrome to match the app surface. Pinch-zoom stays enabled for
+  // accessibility (we intentionally don't lock maximum-scale).
+  viewportFit: 'cover',
+  themeColor: '#f6faf0',
 }
 
 export default function RootLayout({

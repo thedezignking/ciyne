@@ -186,7 +186,7 @@ export default function SignaturePad({ color, initialImage, onChange }: Signatur
           onPointerMove={move}
           onPointerUp={end}
           onPointerLeave={end}
-          className="block h-48 w-full cursor-crosshair touch-none rounded-2xl"
+          className="block h-56 w-full cursor-crosshair touch-none rounded-2xl sm:h-60"
           aria-label="Draw your signature"
         />
         <div className="pointer-events-none absolute inset-x-8 bottom-12 border-b border-dashed border-border" />
