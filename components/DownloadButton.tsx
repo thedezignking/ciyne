@@ -95,6 +95,9 @@ export default function DownloadButton({
       if (payload.placements && payload.placements.length > 0) {
         formData.append('placements', JSON.stringify(payload.placements))
       }
+      if (payload.textAnnotations && payload.textAnnotations.length > 0) {
+        formData.append('textAnnotations', JSON.stringify(payload.textAnnotations))
+      }
 
       const res = await fetch('/api/process', { method: 'POST', body: formData })
       if (!res.ok) {

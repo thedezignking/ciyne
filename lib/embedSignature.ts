@@ -1,9 +1,10 @@
-import { PDFDocument } from 'pdf-lib'
-import type { SignaturePlacement } from '@/types'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import type { SignaturePlacement, TextAnnotation } from '@/types'
 
 export type EmbedSignatureInput = SignaturePlacement & {
   pdfBytes: ArrayBuffer
   signaturePngBytes: Uint8Array
+  textAnnotations?: TextAnnotation[]
 }
 
 /** A single placement in canvas-space coordinates. */
@@ -50,6 +51,10 @@ export async function embedSignature(
     height: pdfH,
   })
 
+  if (input.textAnnotations && input.textAnnotations.length > 0) {
+    await embedTextAnnotations(pdfDoc, input.textAnnotations)
+  }
+
   return pdfDoc.save()
 }
 
@@ -60,7 +65,8 @@ export async function embedSignature(
 export async function embedSignatures(
   pdfBytes: ArrayBuffer,
   signaturePngBytes: Uint8Array,
-  placements: Placement[]
+  placements: Placement[],
+  textAnnotations?: TextAnnotation[]
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(pdfBytes)
   const pages = pdfDoc.getPages()
@@ -80,7 +86,53 @@ export async function embedSignatures(
     })
   }
 
+  if (textAnnotations && textAnnotations.length > 0) {
+    await embedTextAnnotations(pdfDoc, textAnnotations)
+  }
+
   return pdfDoc.save()
+}
+
+/**
+ * Embeds text annotations onto the PDF pages using a standard font.
+ * Coordinates are converted from canvas-space to PDF-space the same way
+ * signatures are.
+ */
+export async function embedTextAnnotations(
+  pdfDoc: PDFDocument,
+  annotations: TextAnnotation[]
+): Promise<void> {
+  if (annotations.length === 0) return
+
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const pages = pdfDoc.getPages()
+
+  for (const ann of annotations) {
+    if (ann.pageIndex < 0 || ann.pageIndex >= pages.length) continue
+    if (!ann.text.trim()) continue
+
+    const page = pages[ann.pageIndex]
+    const { width: pdfWidth, height: pdfHeight } = page.getSize()
+    const scaleX = pdfWidth / ann.canvasWidth
+    const scaleY = pdfHeight / ann.canvasHeight
+
+    // Convert canvas font size to PDF points using the vertical scale factor.
+    const pdfFontSize = ann.fontSize * scaleY
+
+    // X maps directly; Y is flipped (PDF origin is bottom-left).
+    // ann.y is the top of the text box in canvas-space. The baseline sits
+    // roughly one line-height down from the top.
+    const pdfX = ann.x * scaleX
+    const pdfY = pdfHeight - (ann.y + ann.fontSize) * scaleY
+
+    page.drawText(ann.text, {
+      x: pdfX,
+      y: pdfY,
+      size: pdfFontSize,
+      font,
+      color: rgb(0.1, 0.1, 0.12), // #1a1a1e approx
+    })
+  }
 }
 
 export function dataUrlToUint8Array(dataUrl: string): Uint8Array {

@@ -13,7 +13,7 @@ import PdfUploader from '@/components/PdfUploader'
 import SignatureInput from '@/components/SignatureInput'
 import PreviewWorkspace from '@/components/PreviewWorkspace'
 import DownloadButton from '@/components/DownloadButton'
-import type { AppStep, ProcessPayload, SignaturePlacement } from '@/types'
+import type { AppStep, ProcessPayload, SignaturePlacement, TextAnnotation } from '@/types'
 import { emptyDraft, type SignatureDraft } from '@/types/signatureDraft'
 
 export default function HomePage() {
@@ -25,6 +25,7 @@ export default function HomePage() {
   const [draft, setDraft] = useState<SignatureDraft>(emptyDraft)
   const [placement, setPlacement] = useState<SignaturePlacement | null>(null)
   const [batchPlacements, setBatchPlacements] = useState<SignaturePlacement[] | null>(null)
+  const [textAnnotations, setTextAnnotations] = useState<TextAnnotation[]>([])
 
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
 
@@ -90,12 +91,27 @@ export default function HomePage() {
     setBatchPlacements(pls && pls.length > 0 ? pls : null)
   }, [])
 
+  const handleTextAnnotations = useCallback((anns: TextAnnotation[]) => {
+    setTextAnnotations(anns)
+  }, [])
+
+  const nonEmptyAnnotations = textAnnotations.filter((a) => a.text.trim())
+
   const processPayload: ProcessPayload | null = !pdfFile || !signatureDataUrl
     ? null
     : batchPlacements && batchPlacements.length > 0
-      ? { ...batchPlacements[0], signatureImage: signatureDataUrl, placements: batchPlacements }
+      ? {
+          ...batchPlacements[0],
+          signatureImage: signatureDataUrl,
+          placements: batchPlacements,
+          textAnnotations: nonEmptyAnnotations.length > 0 ? nonEmptyAnnotations : undefined,
+        }
       : placement
-        ? { ...placement, signatureImage: signatureDataUrl }
+        ? {
+            ...placement,
+            signatureImage: signatureDataUrl,
+            textAnnotations: nonEmptyAnnotations.length > 0 ? nonEmptyAnnotations : undefined,
+          }
         : null
 
   // ---- Landing view ----
@@ -217,6 +233,7 @@ export default function HomePage() {
               signatureDataUrl={signatureDataUrl}
               onPlacement={handlePlacement}
               onSignAll={handleSignAll}
+              onTextAnnotations={handleTextAnnotations}
             />
             <div className="mt-8 border-t border-border pt-6">
               {!processPayload && (

@@ -2,8 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { embedSignature, embedSignatures, dataUrlToUint8Array } from '@/lib/embedSignature'
 import type { Placement } from '@/lib/embedSignature'
 import { MAX_PDF_BYTES } from '@/types'
+import type { TextAnnotation } from '@/types'
 
 export const runtime = 'nodejs'
+
+function validTextAnnotation(a: unknown): a is TextAnnotation {
+  if (!a || typeof a !== 'object') return false
+  const o = a as Record<string, unknown>
+  if (typeof o.id !== 'string') return false
+  if (typeof o.text !== 'string') return false
+  const nums = [o.pageIndex, o.x, o.y, o.width, o.fontSize, o.canvasWidth, o.canvasHeight]
+  if (nums.some((n) => typeof n !== 'number' || !Number.isFinite(n))) return false
+  return (
+    (o.canvasWidth as number) > 0 &&
+    (o.canvasHeight as number) > 0 &&
+    (o.pageIndex as number) >= 0 &&
+    (o.fontSize as number) > 0
+  )
+}
 
 function validPlacement(p: unknown): p is Placement {
   if (!p || typeof p !== 'object') return false
@@ -25,6 +41,7 @@ export async function POST(request: NextRequest) {
     const originalPDF = formData.get('originalPDF')
     const signatureImage = formData.get('signatureImage')
     const placementsRaw = formData.get('placements')
+    const textAnnotationsRaw = formData.get('textAnnotations')
     const pageIndex = Number(formData.get('pageIndex') ?? 0)
     const x = Number(formData.get('x'))
     const y = Number(formData.get('y'))
@@ -48,6 +65,22 @@ export async function POST(request: NextRequest) {
     const pdfBytes = await originalPDF.arrayBuffer()
     const signaturePngBytes = dataUrlToUint8Array(signatureImage)
 
+    // Parse optional text annotations
+    let textAnnotations: TextAnnotation[] | undefined
+    if (typeof textAnnotationsRaw === 'string' && textAnnotationsRaw.length > 0) {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(textAnnotationsRaw)
+      } catch {
+        return NextResponse.json({ error: 'Invalid text annotations' }, { status: 400 })
+      }
+      if (!Array.isArray(parsed) || !parsed.every(validTextAnnotation)) {
+        return NextResponse.json({ error: 'Invalid text annotations' }, { status: 400 })
+      }
+      // Filter out empty text
+      textAnnotations = (parsed as TextAnnotation[]).filter((a) => a.text.trim().length > 0)
+    }
+
     // Batch path: embed the signature on multiple fields (sign-all).
     if (typeof placementsRaw === 'string' && placementsRaw.length > 0) {
       let parsed: unknown
@@ -60,7 +93,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid placements' }, { status: 400 })
       }
 
-      const signedPdf = await embedSignatures(pdfBytes, signaturePngBytes, parsed as Placement[])
+      const signedPdf = await embedSignatures(pdfBytes, signaturePngBytes, parsed as Placement[], textAnnotations)
       const filename = originalPDF.name.replace(/\.pdf$/i, '') + '-signed.pdf' || 'signed.pdf'
       return new NextResponse(Buffer.from(signedPdf), {
         status: 200,
@@ -87,6 +120,7 @@ export async function POST(request: NextRequest) {
       height,
       canvasWidth,
       canvasHeight,
+      textAnnotations,
     })
 
     const filename =
