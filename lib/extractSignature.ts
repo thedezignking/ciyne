@@ -1,3 +1,5 @@
+import { fitScale, loadImageSrc, MAX_IMAGE_EDGE } from '@/lib/imageUtils'
+
 const MAX_EDGE = 1600 // cap upload size for the vision call
 
 export type ExtractResult =
@@ -5,15 +7,6 @@ export type ExtractResult =
   | { ok: false; configured: boolean; error: string }
 
 type Box = { x: number; y: number; width: number; height: number }
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = reject
-    img.src = src
-  })
-}
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -48,11 +41,16 @@ async function cropToBox(img: HTMLImageElement, box: Box, name: string): Promise
   const cw = Math.max(1, Math.round(x1 - x0))
   const ch = Math.max(1, Math.round(y1 - y0))
 
+  // Cap the crop so the downstream cleaner canvas stays under platform limits.
+  const scale = fitScale(cw, ch, MAX_IMAGE_EDGE)
+  const dw = Math.max(1, Math.round(cw * scale))
+  const dh = Math.max(1, Math.round(ch * scale))
+
   const canvas = document.createElement('canvas')
-  canvas.width = cw
-  canvas.height = ch
+  canvas.width = dw
+  canvas.height = dh
   const ctx = canvas.getContext('2d')!
-  ctx.drawImage(img, x0, y0, cw, ch, 0, 0, cw, ch)
+  ctx.drawImage(img, x0, y0, cw, ch, 0, 0, dw, dh)
 
   const blob = await new Promise<Blob>((resolve) =>
     canvas.toBlob((b) => resolve(b ?? new Blob()), 'image/png')
@@ -71,7 +69,7 @@ export async function extractSignature(file: File): Promise<ExtractResult> {
   let dataUrl: string
   try {
     dataUrl = await fileToDataUrl(file)
-    img = await loadImage(dataUrl)
+    img = await loadImageSrc(dataUrl)
   } catch {
     return { ok: false, configured: true, error: 'Could not read this image.' }
   }

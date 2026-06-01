@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, ArrowRight, FileSignature, FileText, Lock, MousePointer2, PenLine } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LandingHero from '@/components/LandingHero'
@@ -35,6 +35,20 @@ export default function HomePage() {
     })
     setMaxReached((prev) => (s > prev ? s : prev))
   }, [])
+
+  // Warn before an accidental refresh/close discards in-progress work. Nothing
+  // is persisted server-side and the uploaded File can't survive a reload, so a
+  // native confirm is the safest guard against losing a signing session.
+  const hasProgress = focusMode && (Boolean(pdfFile) || Boolean(signatureDataUrl))
+  useEffect(() => {
+    if (!hasProgress) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [hasProgress])
 
   const startSigning = useCallback(() => {
     setFocusMode(true)
@@ -205,6 +219,12 @@ export default function HomePage() {
               onSignAll={handleSignAll}
             />
             <div className="mt-8 border-t border-border pt-6">
+              {!processPayload && (
+                <p className="mb-3 flex items-center gap-2 text-sm font-medium text-secondary">
+                  <MousePointer2 className="h-4 w-4 shrink-0 text-accent-600" aria-hidden />
+                  Drag your signature onto the page, then download.
+                </p>
+              )}
               <DownloadButton
                 pdfFile={pdfFile}
                 payload={processPayload}
@@ -276,7 +296,7 @@ function PrimaryButton({
     <button
       type="button"
       onClick={onClick}
-      className="focus-accent group inline-flex items-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-6 py-3 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)]"
+      className="focus-accent group inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-6 py-3.5 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)] sm:w-auto sm:justify-start sm:py-3"
     >
       {children}
     </button>

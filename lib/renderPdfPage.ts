@@ -1,3 +1,5 @@
+import { fitScale } from '@/lib/imageUtils'
+
 export type RenderedPdfPage = {
   canvas: HTMLCanvasElement
   width: number
@@ -24,7 +26,11 @@ export async function renderPdfPage(
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjs.getDocument({ data: arrayBuffer.slice(0) }).promise
   const page = await pdf.getPage(pageIndex + 1)
-  const viewport = page.getViewport({ scale })
+  // Reduce the scale if the requested one would exceed the canvas edge cap
+  // (large/legal pages on iOS Safari otherwise render blank).
+  const base = page.getViewport({ scale })
+  const fit = fitScale(base.width, base.height)
+  const viewport = fit < 1 ? page.getViewport({ scale: scale * fit }) : base
 
   const canvas = document.createElement('canvas')
   canvas.width = Math.floor(viewport.width)

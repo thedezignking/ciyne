@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Download, Check, PenLine, Share2 } from 'lucide-react'
 import type { ProcessPayload } from '@/types'
 
@@ -29,9 +29,18 @@ export default function DownloadButton({
   const [ready, setReady] = useState<ReadyState | null>(null)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [canShareFiles, setCanShareFiles] = useState(false)
+  const [isIOS, setIsIOS] = useState(false)
 
-  // Detect file-sharing support after mount (mobile) so we can offer it as a
-  // secondary action without making it the default — download stays primary.
+  // Keep the latest blob URL in a ref so we can revoke it on unmount (avoids
+  // leaking object URLs across a long signing session).
+  const urlRef = useRef<string | null>(null)
+  useEffect(() => () => {
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current)
+  }, [])
+
+  // Detect platform capabilities after mount. On iOS the programmatic
+  // <a download> often opens the PDF inline instead of saving, so we lead with
+  // the native share sheet there. Elsewhere, direct download stays primary.
   useEffect(() => {
     try {
       const probe = new File([new Blob()], 'probe.pdf', { type: 'application/pdf' })
@@ -43,6 +52,11 @@ export default function DownloadButton({
     } catch {
       setCanShareFiles(false)
     }
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+    const iOSLike = /iPad|iPhone|iPod/.test(ua) ||
+      // iPadOS 13+ reports as Mac; detect via touch points.
+      (/Macintosh/.test(ua) && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1)
+    setIsIOS(iOSLike)
   }, [])
 
   function triggerDownload(state: ReadyState) {
@@ -63,6 +77,7 @@ export default function DownloadButton({
     setSavedAt(null)
     if (ready) {
       URL.revokeObjectURL(ready.url)
+      urlRef.current = null
       setReady(null)
     }
 
@@ -90,12 +105,16 @@ export default function DownloadButton({
       const blob = await res.blob()
       const filename = (pdfFile.name.replace(/\.pdf$/i, '') || 'signed') + '-signed.pdf'
       const url = URL.createObjectURL(blob)
+      urlRef.current = url
       const file = new File([blob], filename, { type: 'application/pdf' })
       const state = { url, filename, file }
       setReady(state)
-      // Fire the download straight away — works on desktop and Android. On
-      // iOS the confirmation card below offers Download/Share on a fresh tap.
-      triggerDownload(state)
+      // Desktop + Android: fire the download straight away. On iOS a
+      // programmatic download tends to open inline, so we skip the auto-fire
+      // and let the user tap the native "Save / Share" action on the card.
+      if (!(isIOS && canShareFiles)) {
+        triggerDownload(state)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -118,9 +137,12 @@ export default function DownloadButton({
     triggerDownload(ready)
   }
 
-  // Signed & downloaded — confirmation with quick follow-up actions.
-  if (savedAt && ready) {
-    const time = savedAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  // File is ready — confirmation with quick follow-up actions. On iOS we land
+  // here before the file is saved (Save/Share is a deliberate tap); elsewhere
+  // the download already fired and this is a "done" receipt.
+  if (ready) {
+    const time = savedAt?.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    const iosLead = isIOS && canShareFiles && !savedAt
     return (
       <div className="rounded-2xl border border-accent-600/30 bg-accent-50/60 p-5">
         <div className="flex items-start gap-4">
@@ -128,21 +150,36 @@ export default function DownloadButton({
             <Check className="h-6 w-6 stroke-[2.5]" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-base font-bold text-primary">Your document is signed</p>
+            <p className="text-base font-bold text-primary">
+              {savedAt ? 'Your document is signed' : 'Your signed document is ready'}
+            </p>
             <p className="mt-0.5 truncate text-sm font-medium text-secondary">{ready.filename}</p>
-            <p className="mt-1 text-xs text-muted">Downloaded {time}</p>
+            <p className="mt-1 text-xs text-muted">
+              {savedAt ? `Downloaded ${time}` : 'Tap Save to keep it on your device.'}
+            </p>
           </div>
         </div>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button
-            type="button"
-            onClick={() => triggerDownload(ready)}
-            className="focus-accent inline-flex items-center justify-center gap-2 rounded-full bg-accent-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
-          >
-            <Download className="h-4 w-4" aria-hidden />
-            Download again
-          </button>
-          {canShareFiles && (
+          {iosLead ? (
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              className="focus-accent inline-flex items-center justify-center gap-2 rounded-full bg-accent-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
+            >
+              <Share2 className="h-4 w-4" aria-hidden />
+              Save to device
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => triggerDownload(ready)}
+              className="focus-accent inline-flex items-center justify-center gap-2 rounded-full bg-accent-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
+            >
+              <Download className="h-4 w-4" aria-hidden />
+              {savedAt ? 'Download again' : 'Download'}
+            </button>
+          )}
+          {canShareFiles && !iosLead && (
             <button
               type="button"
               onClick={() => void handleShare()}

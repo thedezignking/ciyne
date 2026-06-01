@@ -1,3 +1,5 @@
+import { loadImageSrc } from '@/lib/imageUtils'
+
 export type InkColor = 'navy' | 'black' | 'original'
 
 const COLORS: Record<'navy' | 'black', readonly [number, number, number]> = {
@@ -22,7 +24,7 @@ export async function refineSignature(
   color: InkColor = 'navy',
   weight = 1.0
 ): Promise<string> {
-  const img = await loadImg(dataUrl)
+  const img = await loadImageSrc(dataUrl)
   const w = img.naturalWidth
   const h = img.naturalHeight
   if (w === 0 || h === 0) return dataUrl
@@ -111,13 +113,4 @@ function morph(
     }
   }
   return out
-}
-
-function loadImg(dataUrl: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = reject
-    img.src = dataUrl
-  })
 }
