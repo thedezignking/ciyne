@@ -124,16 +124,30 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
         <div className="space-y-6">
           <SignatureUploader
             currentName={draft.uploadFile?.name ?? null}
-            onFile={(f) => onDraftChange({ uploadFile: f, uploadTrimmed: null })}
+            onFile={(f) =>
+              onDraftChange({
+                uploadFile: f,
+                uploadCropped: null,
+                uploadAiState: 'idle',
+                uploadTrimmed: null,
+              })
+            }
           />
           {draft.uploadFile && (
             <>
-              <ExtractWithAI
+              <AutoExtract
                 file={draft.uploadFile}
-                onExtracted={(f) => onDraftChange({ uploadFile: f, uploadTrimmed: null })}
+                state={draft.uploadAiState}
+                onState={(s) => onDraftChange({ uploadAiState: s })}
+                onCropped={(f) =>
+                  onDraftChange({ uploadCropped: f, uploadAiState: 'cropped', uploadTrimmed: null })
+                }
+                onUseWholePhoto={() =>
+                  onDraftChange({ uploadCropped: null, uploadAiState: 'none', uploadTrimmed: null })
+                }
               />
               <SignatureCleaner
-                sourceFile={draft.uploadFile}
+                sourceFile={draft.uploadCropped ?? draft.uploadFile}
                 onCleaned={(_blob, dataUrl) => onDraftChange({ uploadTrimmed: dataUrl })}
               />
             </>
@@ -147,69 +161,125 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
   )
 }
 
-function ExtractWithAI({
+/**
+ * Runs AI signature extraction automatically the moment a photo is uploaded.
+ * On a cluttered/shadowed photo it crops tightly to the signature so the
+ * cleaner below has an easy job. If AI is unavailable or finds nothing, it
+ * silently falls back to cleaning the whole photo. The user can always revert
+ * to the full photo or re-run.
+ */
+function AutoExtract({
   file,
-  onExtracted,
+  state,
+  onState,
+  onCropped,
+  onUseWholePhoto,
 }: {
   file: File
-  onExtracted: (f: File) => void
+  state: SignatureDraft['uploadAiState']
+  onState: (s: SignatureDraft['uploadAiState']) => void
+  onCropped: (f: File) => void
+  onUseWholePhoto: () => void
 }) {
-  const [status, setStatus] = useState<'idle' | 'working' | 'error' | 'unconfigured'>('idle')
   const [message, setMessage] = useState<string | null>(null)
 
+  // Stable callbacks via refs so the auto-run effect fires once per upload,
+  // not on every parent re-render.
+  const onStateRef = useRef(onState)
+  const onCroppedRef = useRef(onCropped)
+  onStateRef.current = onState
+  onCroppedRef.current = onCropped
+
   const run = useCallback(async () => {
-    setStatus('working')
+    onStateRef.current('working')
     setMessage(null)
     const result = await extractSignature(file)
     if (result.ok) {
-      setStatus('idle')
-      onExtracted(result.file)
+      onCroppedRef.current(result.file)
       return
     }
     if (!result.configured) {
-      setStatus('unconfigured')
+      onStateRef.current('unconfigured')
+    } else if (result.error === 'No signature found in the photo.') {
+      onStateRef.current('none')
     } else {
-      setStatus('error')
       setMessage(result.error)
+      onStateRef.current('error')
     }
-  }, [file, onExtracted])
+  }, [file])
+
+  // Auto-run exactly once, while the state is still 'idle' for this photo.
+  useEffect(() => {
+    if (state === 'idle') void run()
+  }, [state, run])
+
+  const working = state === 'working'
+  const cropped = state === 'cropped'
 
   return (
     <div className="rounded-2xl border border-border bg-page/40 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
-            <Sparkles className="h-4 w-4" aria-hidden />
+            {working ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="h-4 w-4" aria-hidden />
+            )}
           </span>
           <div>
-            <p className="text-sm font-bold text-primary">Messy photo? Extract with AI</p>
+            <p className="text-sm font-bold text-primary">
+              {working
+                ? 'Finding your signature…'
+                : cropped
+                  ? 'Cropped to your signature with AI'
+                  : 'AI signature finder'}
+            </p>
             <p className="text-xs text-secondary">
-              Finds the signature in a cluttered photo and crops to it. Sends this image to an AI service.
+              {working
+                ? 'Locating the handwriting in your photo.'
+                : cropped
+                  ? 'We isolated the signature from the rest of the photo. Cleaned up below.'
+                  : 'Handles cluttered, shadowed photos by cropping to the signature.'}
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => void run()}
-          disabled={status === 'working'}
-          className="focus-accent inline-flex items-center gap-2 rounded-full border border-accent-600/40 bg-surface px-4 py-2 text-sm font-semibold text-accent-600 transition-colors hover:bg-accent-50 disabled:opacity-60"
-        >
-          {status === 'working' ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
+
+        {cropped && (
+          <button
+            type="button"
+            onClick={onUseWholePhoto}
+            className="focus-accent inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs font-semibold text-secondary transition-colors hover:text-primary"
+          >
+            Use whole photo
+          </button>
+        )}
+        {(state === 'none' || state === 'error' || state === 'unconfigured') && (
+          <button
+            type="button"
+            onClick={() => void run()}
+            className="focus-accent inline-flex items-center gap-2 rounded-full border border-accent-600/40 bg-surface px-4 py-2 text-xs font-semibold text-accent-600 transition-colors hover:bg-accent-50"
+          >
             <Scissors className="h-4 w-4" aria-hidden />
-          )}
-          {status === 'working' ? 'Extracting…' : 'Extract signature'}
-        </button>
+            Try AI again
+          </button>
+        )}
       </div>
-      {status === 'unconfigured' && (
+
+      {state === 'unconfigured' && (
         <p className="mt-3 border-t border-border/70 pt-3 text-xs text-muted">
           AI extraction isn’t enabled on this deployment. The cleanup below still removes the background.
         </p>
       )}
-      {status === 'error' && (
+      {state === 'none' && (
+        <p className="mt-3 border-t border-border/70 pt-3 text-xs text-muted">
+          AI couldn’t pinpoint a signature, so we’re cleaning the whole photo. Crop it tighter before
+          uploading if the result looks off.
+        </p>
+      )}
+      {state === 'error' && (
         <p className="mt-3 border-t border-border/70 pt-3 text-xs text-red-600" role="alert">
-          {message ?? 'Extraction failed.'} You can still use the cleanup below.
+          {message ?? 'Extraction failed.'} We’re cleaning the whole photo instead.
         </p>
       )}
     </div>

@@ -7,7 +7,7 @@
  * neither key exists so callers can degrade gracefully.
  */
 
-const GEMINI_MODEL = 'gemini-2.0-flash'
+const GEMINI_MODEL = 'gemini-2.5-flash'
 const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 
@@ -63,7 +63,13 @@ async function runGemini(input: VisionInput, key: string): Promise<VisionResult>
             ],
           },
         ],
-        generationConfig: { maxOutputTokens: input.maxTokens ?? 1024, temperature: 0 },
+        generationConfig: {
+          maxOutputTokens: input.maxTokens ?? 1024,
+          temperature: 0,
+          // 2.5 models spend "thinking" tokens by default, which can swallow
+          // the entire output budget. We only need the final JSON, so disable it.
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     })
 

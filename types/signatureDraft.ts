@@ -21,8 +21,12 @@ export type SignatureDraft = {
   typeFontId: string
   typeTrimmed: string | null
 
-  // Upload: the chosen file + the background-removed trimmed source.
+  // Upload: the raw chosen photo, an optional AI-cropped version of it, and
+  // the final background-removed trimmed source. The cleaner runs on the
+  // cropped file when present, otherwise the raw photo.
   uploadFile: File | null
+  uploadCropped: File | null
+  uploadAiState: 'idle' | 'working' | 'cropped' | 'none' | 'unconfigured' | 'error'
   uploadTrimmed: string | null
 }
 
@@ -36,5 +40,7 @@ export const emptyDraft: SignatureDraft = {
   typeFontId: 'dancing',
   typeTrimmed: null,
   uploadFile: null,
+  uploadCropped: null,
+  uploadAiState: 'idle',
   uploadTrimmed: null,
 }
