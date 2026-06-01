@@ -1,3 +1,5 @@
+import { fitScale, loadImageFile } from '@/lib/imageUtils'
+
 // Sensitivity runs 0–100 in the UI. 50 is "neutral" (use the auto threshold as-is);
 // higher removes more (keeps less), lower removes less (keeps more).
 export const DEFAULT_THRESHOLD = 50
@@ -26,15 +28,19 @@ export async function removeBackground(
   file: File,
   sensitivity = DEFAULT_THRESHOLD
 ): Promise<Blob> {
-  const img = await loadImage(file)
+  const img = await loadImageFile(file)
+  // Cap the working resolution: keeps us under iOS's canvas limit and avoids
+  // OOM from the float buffers below on low-RAM devices. A signature cutout
+  // doesn't need more than ~2200px on its longest edge.
+  const scale = fitScale(img.naturalWidth, img.naturalHeight)
   const canvas = document.createElement('canvas')
-  canvas.width = img.naturalWidth
-  canvas.height = img.naturalHeight
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale))
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale))
 
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('Canvas not supported')
 
-  ctx.drawImage(img, 0, 0)
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
   const w = canvas.width
   const h = canvas.height
   const imageData = ctx.getImageData(0, 0, w, h)
@@ -153,17 +159,4 @@ function otsuThreshold(values: Float32Array, n: number): number {
     }
   }
   return threshold
-}
-
-async function loadImage(file: File): Promise<HTMLImageElement> {
-  const url = URL.createObjectURL(file)
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve(image)
-    }
-    image.onerror = reject
-    image.src = url
-  })
 }
