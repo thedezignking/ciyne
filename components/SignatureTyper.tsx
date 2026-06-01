@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { trimToDataUrl } from '@/lib/signatureCanvas'
 
 type SignatureTyperProps = {
@@ -39,10 +39,14 @@ export default function SignatureTyper({
 }: SignatureTyperProps) {
   const font = FONTS.find((f) => f.id === fontId) ?? FONTS[0]
 
+  // Stable ref so the render effect doesn't loop on callback identity changes.
+  const onRenderRef = useRef(onRender)
+  onRenderRef.current = onRender
+
   const render = useCallback(async () => {
     const value = text.trim()
     if (!value) {
-      onRender(null)
+      onRenderRef.current(null)
       return
     }
 
@@ -77,8 +81,8 @@ export default function SignatureTyper({
     ctx.textAlign = 'left'
     ctx.fillText(value, pad, logicalH / 2)
 
-    onRender(trimToDataUrl(canvas, Math.round(16 * dpr)))
-  }, [text, font.cssVar, font.weight, onRender])
+    onRenderRef.current(trimToDataUrl(canvas, Math.round(16 * dpr)))
+  }, [text, font.cssVar, font.weight])
 
   // Re-render live whenever the text or font changes.
   useEffect(() => {
