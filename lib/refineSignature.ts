@@ -6,13 +6,16 @@ const COLORS: Record<'navy' | 'black', readonly [number, number, number]> = {
 }
 
 /**
- * Thickens a signature and optionally recolors it.
+ * Thickens or thins a signature and optionally recolors it.
  *
- * Thickening is done by stamping the source image at a ring of small offsets,
- * which preserves the original colors and anti-aliasing. The `weight` param
- * (0.5–2.0, default 1.0) scales the dilation radius. With 'navy' or 'black'
- * every inked pixel is then recolored for a clean, consistent look; with
- * 'original' the real ink colors are kept (useful for photos).
+ * `weight` is centered on 1.0 (the raw stroke, unchanged):
+ *   - weight < 1  → erode the alpha (thinner strokes)
+ *   - weight = 1  → source unchanged
+ *   - weight > 1  → dilate (thicker strokes)
+ *
+ * With 'navy'/'black' every inked pixel is recolored for a clean, consistent
+ * look. With 'original' the real ink colors are kept (useful for photos):
+ * dilation stamps the real pixels, erosion just trims the alpha.
  */
 export async function refineSignature(
   dataUrl: string,
@@ -29,32 +32,85 @@ export async function refineSignature(
   canvas.height = h
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!
 
-  // Stroke thickening: stamp the source at a ring of offsets.
-  const r = Math.max(1, Math.round(Math.min(w, h) * 0.008 * weight))
-  for (let dy = -r; dy <= r; dy++) {
-    for (let dx = -r; dx <= r; dx++) {
-      if (dx * dx + dy * dy > r * r) continue // keep the stamp round
-      ctx.drawImage(img, dx, dy)
-    }
-  }
+  // Radius in pixels, scaled to the image. Centered on weight 1.0.
+  const span = Math.min(w, h) * 0.014
+  const radius = Math.round((weight - 1) * span)
 
-  if (color === 'original') {
+  if (color === 'original' && radius >= 0) {
+    // Dilate by stamping the real source pixels so colors are preserved.
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx * dx + dy * dy > radius * radius) continue
+        ctx.drawImage(img, dx, dy)
+      }
+    }
     return canvas.toDataURL('image/png')
   }
 
-  // Recolor every inked pixel to the chosen ink, preserving alpha.
-  const [cr, cg, cb] = COLORS[color]
+  ctx.drawImage(img, 0, 0)
   const imageData = ctx.getImageData(0, 0, w, h)
   const data = imageData.data
-  for (let i = 0; i < data.length; i += 4) {
-    if (data[i + 3] > 0) {
-      data[i] = cr
-      data[i + 1] = cg
-      data[i + 2] = cb
+  const n = w * h
+
+  // Source alpha → morphology (dilate for radius>0, erode for radius<0).
+  const srcA = new Uint8ClampedArray(n)
+  for (let i = 0; i < n; i++) srcA[i] = data[i * 4 + 3]
+  const outA = radius === 0 ? srcA : morph(srcA, w, h, Math.abs(radius), radius > 0 ? 'max' : 'min')
+
+  if (color === 'original') {
+    // Erosion only here: keep RGB, trim alpha to the eroded mask.
+    for (let i = 0; i < n; i++) {
+      data[i * 4 + 3] = Math.min(data[i * 4 + 3], outA[i])
+    }
+  } else {
+    const [cr, cg, cb] = COLORS[color]
+    for (let i = 0; i < n; i++) {
+      data[i * 4] = cr
+      data[i * 4 + 1] = cg
+      data[i * 4 + 2] = cb
+      data[i * 4 + 3] = outA[i]
     }
   }
+
   ctx.putImageData(imageData, 0, 0)
   return canvas.toDataURL('image/png')
+}
+
+/** Separable morphological filter (max = dilate, min = erode) on a single channel. */
+function morph(
+  src: Uint8ClampedArray,
+  w: number,
+  h: number,
+  r: number,
+  op: 'max' | 'min'
+): Uint8ClampedArray {
+  if (r < 1) return src
+  const pick = op === 'max' ? Math.max : Math.min
+  const tmp = new Uint8ClampedArray(w * h)
+  const out = new Uint8ClampedArray(w * h)
+
+  // Horizontal pass
+  for (let y = 0; y < h; y++) {
+    const row = y * w
+    for (let x = 0; x < w; x++) {
+      let acc = src[row + x]
+      const x0 = Math.max(0, x - r)
+      const x1 = Math.min(w - 1, x + r)
+      for (let xi = x0; xi <= x1; xi++) acc = pick(acc, src[row + xi])
+      tmp[row + x] = acc
+    }
+  }
+  // Vertical pass
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      let acc = tmp[y * w + x]
+      const y0 = Math.max(0, y - r)
+      const y1 = Math.min(h - 1, y + r)
+      for (let yi = y0; yi <= y1; yi++) acc = pick(acc, tmp[yi * w + x])
+      out[y * w + x] = acc
+    }
+  }
+  return out
 }
 
 function loadImg(dataUrl: string): Promise<HTMLImageElement> {

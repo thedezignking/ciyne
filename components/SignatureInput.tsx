@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { PenLine, Type, ImageUp } from 'lucide-react'
+import { PenLine, Type, ImageUp, Sparkles, Loader2, Scissors } from 'lucide-react'
 import SignaturePad from '@/components/SignaturePad'
 import SignatureTyper from '@/components/SignatureTyper'
 import SignatureUploader from '@/components/SignatureUploader'
 import SignatureCleaner from '@/components/SignatureCleaner'
 import { refineSignature, type InkColor } from '@/lib/refineSignature'
+import { extractSignature } from '@/lib/extractSignature'
 import type { SignatureDraft, SignatureMode } from '@/types/signatureDraft'
 
 type SignatureInputProps = {
@@ -126,16 +127,91 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
             onFile={(f) => onDraftChange({ uploadFile: f, uploadTrimmed: null })}
           />
           {draft.uploadFile && (
-            <SignatureCleaner
-              sourceFile={draft.uploadFile}
-              onCleaned={(_blob, dataUrl) => onDraftChange({ uploadTrimmed: dataUrl })}
-            />
+            <>
+              <ExtractWithAI
+                file={draft.uploadFile}
+                onExtracted={(f) => onDraftChange({ uploadFile: f, uploadTrimmed: null })}
+              />
+              <SignatureCleaner
+                sourceFile={draft.uploadFile}
+                onCleaned={(_blob, dataUrl) => onDraftChange({ uploadTrimmed: dataUrl })}
+              />
+            </>
           )}
         </div>
       )}
 
       {/* Live preview of the final styled signature */}
       <LivePreview source={activeSource} color={color} weight={weight} />
+    </div>
+  )
+}
+
+function ExtractWithAI({
+  file,
+  onExtracted,
+}: {
+  file: File
+  onExtracted: (f: File) => void
+}) {
+  const [status, setStatus] = useState<'idle' | 'working' | 'error' | 'unconfigured'>('idle')
+  const [message, setMessage] = useState<string | null>(null)
+
+  const run = useCallback(async () => {
+    setStatus('working')
+    setMessage(null)
+    const result = await extractSignature(file)
+    if (result.ok) {
+      setStatus('idle')
+      onExtracted(result.file)
+      return
+    }
+    if (!result.configured) {
+      setStatus('unconfigured')
+    } else {
+      setStatus('error')
+      setMessage(result.error)
+    }
+  }, [file, onExtracted])
+
+  return (
+    <div className="rounded-2xl border border-border bg-page/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
+            <Sparkles className="h-4 w-4" aria-hidden />
+          </span>
+          <div>
+            <p className="text-sm font-bold text-primary">Messy photo? Extract with AI</p>
+            <p className="text-xs text-secondary">
+              Finds the signature in a cluttered photo and crops to it. Sends this image to an AI service.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void run()}
+          disabled={status === 'working'}
+          className="focus-accent inline-flex items-center gap-2 rounded-full border border-accent-600/40 bg-surface px-4 py-2 text-sm font-semibold text-accent-600 transition-colors hover:bg-accent-50 disabled:opacity-60"
+        >
+          {status === 'working' ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Scissors className="h-4 w-4" aria-hidden />
+          )}
+          {status === 'working' ? 'Extracting…' : 'Extract signature'}
+        </button>
+      </div>
+      {status === 'unconfigured' && (
+        <p className="mt-3 border-t border-border/70 pt-3 text-xs text-muted">
+          AI extraction isn’t enabled on this deployment. The cleanup below still removes the background.
+        </p>
+      )}
+      {status === 'error' && (
+        <p className="mt-3 border-t border-border/70 pt-3 text-xs text-red-600" role="alert">
+          {message ?? 'Extraction failed.'} You can still use the cleanup below.
+        </p>
+      )}
     </div>
   )
 }
@@ -204,7 +280,7 @@ function InkControls({
         <span className="font-semibold uppercase tracking-wide">Weight</span>
         <input
           type="range"
-          min={0.5}
+          min={0.4}
           max={2}
           step={0.05}
           value={weight}
