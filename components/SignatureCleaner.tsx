@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Wand2 } from 'lucide-react'
 import { DEFAULT_THRESHOLD, removeBackground } from '@/lib/removeBackground'
 
@@ -15,6 +15,9 @@ export default function SignatureCleaner({ sourceFile, onCleaned }: SignatureCle
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
 
+  const onCleanedRef = useRef(onCleaned)
+  onCleanedRef.current = onCleaned
+
   const process = useCallback(async () => {
     setProcessing(true)
     try {
@@ -26,11 +29,11 @@ export default function SignatureCleaner({ sourceFile, onCleaned }: SignatureCle
         reader.readAsDataURL(blob)
       })
       setPreviewUrl(dataUrl)
-      onCleaned(blob, dataUrl)
+      onCleanedRef.current(blob, dataUrl)
     } finally {
       setProcessing(false)
     }
-  }, [sourceFile, sensitivity, onCleaned])
+  }, [sourceFile, sensitivity])
 
   useEffect(() => {
     const timer = setTimeout(() => {
