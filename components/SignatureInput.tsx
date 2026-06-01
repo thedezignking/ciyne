@@ -47,14 +47,19 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
   // Re-derive the refined PNG whenever the source, color, or weight changes.
   // A token guards against out-of-order async results.
   const tokenRef = useRef(0)
+  const [refinedUrl, setRefinedUrl] = useState<string | null>(null)
   useEffect(() => {
     const token = ++tokenRef.current
     if (!activeSource) {
+      setRefinedUrl(null)
       onSignature(null)
       return
     }
     void refineSignature(activeSource, color, weight).then((png) => {
-      if (tokenRef.current === token) onSignature(png)
+      if (tokenRef.current === token) {
+        setRefinedUrl(png)
+        onSignature(png)
+      }
     })
   }, [activeSource, color, weight, onSignature])
 
@@ -100,7 +105,7 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
         })}
       </div>
 
-      {/* Draw mode: canvas + inline ink controls */}
+      {/* Draw mode: canvas + ink controls + inline preview */}
       {mode === 'draw' && (
         <div className="space-y-4">
           <SignaturePad
@@ -116,10 +121,11 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
             onWeightChange={(w) => onDraftChange({ weight: w })}
             disabled={!activeSource}
           />
+          <InlinePreview url={refinedUrl} />
         </div>
       )}
 
-      {/* Type mode: typer + inline ink controls */}
+      {/* Type mode: typer + ink controls + inline preview */}
       {mode === 'type' && (
         <div className="space-y-4">
           <SignatureTyper
@@ -137,6 +143,7 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
             onWeightChange={(w) => onDraftChange({ weight: w })}
             disabled={!activeSource}
           />
+          <InlinePreview url={refinedUrl} />
         </div>
       )}
 
@@ -507,6 +514,17 @@ function InkControls({
           aria-label="Stroke thickness"
         />
       </label>
+    </div>
+  )
+}
+
+/** Shows the refined signature inline below the draw/type panel. */
+function InlinePreview({ url }: { url: string | null }) {
+  if (!url) return null
+  return (
+    <div className="flex min-h-[80px] items-center justify-center overflow-hidden rounded-xl border border-border bg-[repeating-conic-gradient(#e7eaef_0%_25%,#f7f8fa_0%_50%)] bg-[length:16px_16px] p-3">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt="Signature preview" className="max-h-24 max-w-full object-contain" />
     </div>
   )
 }
