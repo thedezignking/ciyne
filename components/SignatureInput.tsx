@@ -1,13 +1,22 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { PenLine, Type, ImageUp, Sparkles, Loader2, Scissors } from 'lucide-react'
+import {
+  PenLine,
+  Type,
+  ImageUp,
+  Sparkles,
+  Loader2,
+  Scissors,
+  SlidersHorizontal,
+  ChevronDown,
+} from 'lucide-react'
 import SignaturePad from '@/components/SignaturePad'
 import SignatureTyper from '@/components/SignatureTyper'
 import SignatureUploader from '@/components/SignatureUploader'
-import SignatureCleaner from '@/components/SignatureCleaner'
 import { refineSignature, type InkColor } from '@/lib/refineSignature'
 import { extractSignature } from '@/lib/extractSignature'
+import { DEFAULT_THRESHOLD, removeBackground } from '@/lib/removeBackground'
 import type { SignatureDraft, SignatureMode } from '@/types/signatureDraft'
 
 type SignatureInputProps = {
@@ -91,37 +100,49 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
         })}
       </div>
 
-      {/* Ink + weight controls (shown once there is something to style) */}
-      <InkControls
-        options={colorOptions}
-        color={color}
-        onColorChange={(c) => onDraftChange({ color: c })}
-        weight={weight}
-        onWeightChange={(w) => onDraftChange({ weight: w })}
-        disabled={!activeSource}
-      />
-
-      {/* Input panel */}
+      {/* Draw mode: canvas + inline ink controls */}
       {mode === 'draw' && (
-        <SignaturePad
-          color={color === 'black' ? SWATCH.black : SWATCH.navy}
-          initialImage={draft.drawFull}
-          onChange={(full, trimmed) => onDraftChange({ drawFull: full, drawTrimmed: trimmed })}
-        />
+        <div className="space-y-4">
+          <SignaturePad
+            color={color === 'black' ? SWATCH.black : SWATCH.navy}
+            initialImage={draft.drawFull}
+            onChange={(full, trimmed) => onDraftChange({ drawFull: full, drawTrimmed: trimmed })}
+          />
+          <InkControls
+            options={colorOptions}
+            color={color}
+            onColorChange={(c) => onDraftChange({ color: c })}
+            weight={weight}
+            onWeightChange={(w) => onDraftChange({ weight: w })}
+            disabled={!activeSource}
+          />
+        </div>
       )}
 
+      {/* Type mode: typer + inline ink controls */}
       {mode === 'type' && (
-        <SignatureTyper
-          text={draft.typeText}
-          fontId={draft.typeFontId}
-          onTextChange={(t) => onDraftChange({ typeText: t })}
-          onFontChange={(f) => onDraftChange({ typeFontId: f })}
-          onRender={(trimmed) => onDraftChange({ typeTrimmed: trimmed })}
-        />
+        <div className="space-y-4">
+          <SignatureTyper
+            text={draft.typeText}
+            fontId={draft.typeFontId}
+            onTextChange={(t) => onDraftChange({ typeText: t })}
+            onFontChange={(f) => onDraftChange({ typeFontId: f })}
+            onRender={(trimmed) => onDraftChange({ typeTrimmed: trimmed })}
+          />
+          <InkControls
+            options={colorOptions}
+            color={color}
+            onColorChange={(c) => onDraftChange({ color: c })}
+            weight={weight}
+            onWeightChange={(w) => onDraftChange({ weight: w })}
+            disabled={!activeSource}
+          />
+        </div>
       )}
 
+      {/* Upload mode: uploader + unified result card */}
       {mode === 'upload' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <SignatureUploader
             currentName={draft.uploadFile?.name ?? null}
             onFile={(f) =>
@@ -134,157 +155,284 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
             }
           />
           {draft.uploadFile && (
-            <>
-              <AutoExtract
-                file={draft.uploadFile}
-                state={draft.uploadAiState}
-                onState={(s) => onDraftChange({ uploadAiState: s })}
-                onCropped={(f) =>
-                  onDraftChange({ uploadCropped: f, uploadAiState: 'cropped', uploadTrimmed: null })
-                }
-                onUseWholePhoto={() =>
-                  onDraftChange({ uploadCropped: null, uploadAiState: 'none', uploadTrimmed: null })
-                }
-              />
-              <SignatureCleaner
-                sourceFile={draft.uploadCropped ?? draft.uploadFile}
-                onCleaned={(_blob, dataUrl) => onDraftChange({ uploadTrimmed: dataUrl })}
-              />
-            </>
+            <UploadResultCard
+              file={draft.uploadFile}
+              croppedFile={draft.uploadCropped}
+              aiState={draft.uploadAiState}
+              onAiState={(s) => onDraftChange({ uploadAiState: s })}
+              onCropped={(f) =>
+                onDraftChange({ uploadCropped: f, uploadAiState: 'cropped', uploadTrimmed: null })
+              }
+              onUseWholePhoto={() =>
+                onDraftChange({ uploadCropped: null, uploadAiState: 'none', uploadTrimmed: null })
+              }
+              onCleaned={(dataUrl) => onDraftChange({ uploadTrimmed: dataUrl })}
+              colorOptions={colorOptions}
+              color={color}
+              onColorChange={(c) => onDraftChange({ color: c })}
+              weight={weight}
+              onWeightChange={(w) => onDraftChange({ weight: w })}
+              uploadTrimmed={draft.uploadTrimmed}
+            />
           )}
         </div>
       )}
-
-      {/* Live preview of the final styled signature */}
-      <LivePreview source={activeSource} color={color} weight={weight} />
     </div>
   )
 }
 
+// ---------------------------------------------------------------------------
+// Unified upload result card
+// ---------------------------------------------------------------------------
+
 /**
- * Runs AI signature extraction automatically the moment a photo is uploaded.
- * On a cluttered/shadowed photo it crops tightly to the signature so the
- * cleaner below has an easy job. If AI is unavailable or finds nothing, it
- * silently falls back to cleaning the whole photo. The user can always revert
- * to the full photo or re-run.
+ * Combines AI extraction status, background removal preview, ink controls,
+ * and fine-tune cleanup into a single card that replaces the previous 3
+ * separate components.
  */
-function AutoExtract({
+function UploadResultCard({
   file,
-  state,
-  onState,
+  croppedFile,
+  aiState,
+  onAiState,
   onCropped,
   onUseWholePhoto,
+  onCleaned,
+  colorOptions,
+  color,
+  onColorChange,
+  weight,
+  onWeightChange,
+  uploadTrimmed,
 }: {
   file: File
-  state: SignatureDraft['uploadAiState']
-  onState: (s: SignatureDraft['uploadAiState']) => void
+  croppedFile: File | null
+  aiState: SignatureDraft['uploadAiState']
+  onAiState: (s: SignatureDraft['uploadAiState']) => void
   onCropped: (f: File) => void
   onUseWholePhoto: () => void
+  onCleaned: (dataUrl: string) => void
+  colorOptions: InkColor[]
+  color: InkColor
+  onColorChange: (c: InkColor) => void
+  weight: number
+  onWeightChange: (w: number) => void
+  uploadTrimmed: string | null
 }) {
-  const [message, setMessage] = useState<string | null>(null)
+  // --- AI extraction logic (formerly AutoExtract) ---
+  const [aiMessage, setAiMessage] = useState<string | null>(null)
 
-  // Stable callbacks via refs so the auto-run effect fires once per upload,
-  // not on every parent re-render.
-  const onStateRef = useRef(onState)
+  const onAiStateRef = useRef(onAiState)
   const onCroppedRef = useRef(onCropped)
-  onStateRef.current = onState
+  onAiStateRef.current = onAiState
   onCroppedRef.current = onCropped
 
-  const run = useCallback(async () => {
-    onStateRef.current('working')
-    setMessage(null)
+  const runAi = useCallback(async () => {
+    onAiStateRef.current('working')
+    setAiMessage(null)
     const result = await extractSignature(file)
     if (result.ok) {
       onCroppedRef.current(result.file)
       return
     }
     if (!result.configured) {
-      onStateRef.current('unconfigured')
+      onAiStateRef.current('unconfigured')
     } else if (result.error === 'No signature found in the photo.') {
-      onStateRef.current('none')
+      onAiStateRef.current('none')
     } else {
-      setMessage(result.error)
-      onStateRef.current('error')
+      setAiMessage(result.error)
+      onAiStateRef.current('error')
     }
   }, [file])
 
-  // Auto-run exactly once, while the state is still 'idle' for this photo.
+  // Auto-run AI exactly once while state is still 'idle'.
   useEffect(() => {
-    if (state === 'idle') void run()
-  }, [state, run])
+    if (aiState === 'idle') void runAi()
+  }, [aiState, runAi])
 
-  const working = state === 'working'
-  const cropped = state === 'cropped'
+  // --- Background removal logic (formerly inside SignatureCleaner) ---
+  const [sensitivity, setSensitivity] = useState(DEFAULT_THRESHOLD)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [cleaning, setCleaning] = useState(false)
+  const [showAdjust, setShowAdjust] = useState(false)
+
+  const onCleanedRef = useRef(onCleaned)
+  onCleanedRef.current = onCleaned
+
+  const sourceFile = croppedFile ?? file
+
+  const processClean = useCallback(async () => {
+    setCleaning(true)
+    try {
+      const blob = await removeBackground(sourceFile, sensitivity)
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      setPreviewUrl(dataUrl)
+      onCleanedRef.current(dataUrl)
+    } finally {
+      setCleaning(false)
+    }
+  }, [sourceFile, sensitivity])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void processClean()
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [processClean])
+
+  // --- Derived state ---
+  const aiWorking = aiState === 'working'
+  const aiCropped = aiState === 'cropped'
+  const aiFailed = aiState === 'none' || aiState === 'error' || aiState === 'unconfigured'
+
+  // Status line text
+  let statusText: string
+  if (aiWorking) {
+    statusText = 'Finding your signature…'
+  } else if (cleaning && !previewUrl) {
+    statusText = 'Removing background…'
+  } else if (aiCropped) {
+    statusText = 'AI extracted & cleaned'
+  } else if (previewUrl) {
+    statusText = 'Cleaned'
+  } else {
+    statusText = 'Processing…'
+  }
 
   return (
-    <div className="rounded-2xl border border-border bg-page/40 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
-            {working ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <Sparkles className="h-4 w-4" aria-hidden />
-            )}
-          </span>
-          <div>
-            <p className="text-sm font-bold text-primary">
-              {working
-                ? 'Finding your signature…'
-                : cropped
-                  ? 'Cropped to your signature with AI'
-                  : 'AI signature finder'}
-            </p>
-            <p className="text-xs text-secondary">
-              {working
-                ? 'Locating the handwriting in your photo.'
-                : cropped
-                  ? 'We isolated the signature from the rest of the photo. Cleaned up below.'
-                  : 'Handles cluttered, shadowed photos by cropping to the signature.'}
-            </p>
-          </div>
+    <div className="rounded-2xl border border-border bg-page/50 p-4 sm:p-5 space-y-4">
+      {/* Status line */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm">
+          {aiWorking ? (
+            <Loader2 className="h-4 w-4 animate-spin text-accent-600" aria-hidden />
+          ) : (
+            <Sparkles className="h-4 w-4 text-accent-600" aria-hidden />
+          )}
+          <span className="font-semibold text-primary">{statusText}</span>
         </div>
 
-        {cropped && (
-          <button
-            type="button"
-            onClick={onUseWholePhoto}
-            className="focus-accent inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs font-semibold text-secondary transition-colors hover:text-primary"
-          >
-            Use whole photo
-          </button>
+        <div className="flex items-center gap-2">
+          {aiCropped && (
+            <button
+              type="button"
+              onClick={onUseWholePhoto}
+              className="focus-accent inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-secondary transition-colors hover:text-primary"
+            >
+              Use whole photo
+            </button>
+          )}
+          {aiFailed && (
+            <button
+              type="button"
+              onClick={() => void runAi()}
+              className="focus-accent inline-flex items-center gap-1.5 rounded-full border border-accent-600/40 bg-surface px-3 py-1.5 text-xs font-semibold text-accent-600 transition-colors hover:bg-accent-50"
+            >
+              <Scissors className="h-3.5 w-3.5" aria-hidden />
+              Try AI again
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* AI fallback notes — compact */}
+      {aiState === 'unconfigured' && (
+        <p className="text-xs text-muted">
+          AI extraction isn&apos;t enabled on this deployment. The cleanup still removes the background.
+        </p>
+      )}
+      {aiState === 'none' && (
+        <p className="text-xs text-muted">
+          AI couldn&apos;t pinpoint a signature, so we&apos;re cleaning the whole photo.
+        </p>
+      )}
+      {aiState === 'error' && (
+        <p className="text-xs text-red-600" role="alert">
+          {aiMessage ?? 'Extraction failed.'} Cleaning the whole photo instead.
+        </p>
+      )}
+
+      {/* Cleaned preview on checkerboard, with optional spinner overlay */}
+      <div className="relative flex min-h-[140px] items-center justify-center overflow-hidden rounded-xl border border-border bg-[repeating-conic-gradient(#e7eaef_0%_25%,#f7f8fa_0%_50%)] bg-[length:16px_16px] p-4">
+        {previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={previewUrl}
+            alt="Cleaned signature preview"
+            className="max-h-44 max-w-full object-contain"
+          />
+        ) : (
+          <p className="text-sm text-secondary">Processing…</p>
         )}
-        {(state === 'none' || state === 'error' || state === 'unconfigured') && (
-          <button
-            type="button"
-            onClick={() => void run()}
-            className="focus-accent inline-flex items-center gap-2 rounded-full border border-accent-600/40 bg-surface px-4 py-2 text-xs font-semibold text-accent-600 transition-colors hover:bg-accent-50"
-          >
-            <Scissors className="h-4 w-4" aria-hidden />
-            Try AI again
-          </button>
+
+        {/* Spinner overlay while AI or cleaner is running */}
+        {(aiWorking || (cleaning && previewUrl)) && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/60">
+            <Loader2 className="h-6 w-6 animate-spin text-accent-600" aria-hidden />
+          </div>
         )}
       </div>
 
-      {state === 'unconfigured' && (
-        <p className="mt-3 border-t border-border/70 pt-3 text-xs text-muted">
-          AI extraction isn’t enabled on this deployment. The cleanup below still removes the background.
-        </p>
-      )}
-      {state === 'none' && (
-        <p className="mt-3 border-t border-border/70 pt-3 text-xs text-muted">
-          AI couldn’t pinpoint a signature, so we’re cleaning the whole photo. Crop it tighter before
-          uploading if the result looks off.
-        </p>
-      )}
-      {state === 'error' && (
-        <p className="mt-3 border-t border-border/70 pt-3 text-xs text-red-600" role="alert">
-          {message ?? 'Extraction failed.'} We’re cleaning the whole photo instead.
-        </p>
-      )}
+      {/* Inline ink controls */}
+      <InkControls
+        options={colorOptions}
+        color={color}
+        onColorChange={onColorChange}
+        weight={weight}
+        onWeightChange={onWeightChange}
+        disabled={!uploadTrimmed}
+      />
+
+      {/* Collapsible fine-tune cleanup */}
+      <div className="border-t border-border/70 pt-3">
+        <button
+          type="button"
+          onClick={() => setShowAdjust((v) => !v)}
+          aria-expanded={showAdjust}
+          className="focus-accent flex w-full items-center justify-between rounded-lg text-xs font-semibold text-secondary transition-colors hover:text-primary"
+        >
+          <span className="inline-flex items-center gap-2">
+            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+            Fine-tune cleanup
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${showAdjust ? 'rotate-180' : ''}`}
+            aria-hidden
+          />
+        </button>
+        {showAdjust && (
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="font-medium text-secondary">Keep more</span>
+              <span className="font-medium text-secondary">Remove more</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={sensitivity}
+              onChange={(e) => setSensitivity(Number(e.target.value))}
+              className="h-1.5 w-full cursor-pointer accent-accent-500"
+              aria-label="Background removal sensitivity"
+            />
+            <p className="mt-2 text-xs text-muted">
+              Drag left if parts of your signature disappear, right if any background remains.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Ink controls (shared across all modes)
+// ---------------------------------------------------------------------------
 
 function InkControls({
   options,
@@ -359,40 +507,6 @@ function InkControls({
           aria-label="Stroke thickness"
         />
       </label>
-    </div>
-  )
-}
-
-function LivePreview({
-  source,
-  color,
-  weight,
-}: {
-  source: string | null
-  color: InkColor
-  weight: number
-}) {
-  const [url, setUrl] = useState<string | null>(null)
-  const tokenRef = useRef(0)
-  useEffect(() => {
-    const token = ++tokenRef.current
-    if (!source) {
-      setUrl(null)
-      return
-    }
-    void refineSignature(source, color, weight).then((png) => {
-      if (tokenRef.current === token) setUrl(png)
-    })
-  }, [source, color, weight])
-
-  if (!source || !url) return null
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-secondary">Preview</p>
-      <div className="flex min-h-[96px] items-center justify-center overflow-hidden rounded-xl border border-border bg-[repeating-conic-gradient(#e7eaef_0%_25%,#f7f8fa_0%_50%)] bg-[length:16px_16px] p-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt="Signature preview" className="max-h-28 max-w-full object-contain" />
-      </div>
     </div>
   )
 }

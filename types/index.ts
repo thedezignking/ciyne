@@ -12,6 +12,8 @@ export type ProcessPayload = SignaturePlacement & {
   signatureImage: string
   /** When set, embed the signature on every listed placement (sign-all). */
   placements?: SignaturePlacement[]
+  /** Optional text annotations to embed alongside signatures. */
+  textAnnotations?: TextAnnotation[]
 }
 
 /** A signature/date/initial field located on a page by AI, in normalized
@@ -23,6 +25,18 @@ export type DetectedField = {
   width: number
   height: number
   confidence?: number
+}
+
+export type TextAnnotation = {
+  id: string
+  pageIndex: number
+  x: number        // canvas-space
+  y: number        // canvas-space
+  width: number    // canvas-space
+  fontSize: number // in points, for the final PDF
+  text: string
+  canvasWidth: number
+  canvasHeight: number
 }
 
 export type AppStep = 1 | 2 | 3

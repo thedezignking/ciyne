@@ -6,11 +6,11 @@ export const maxDuration = 30
 
 const SYSTEM = `You are an image analysis assistant. You are given a photo that contains a handwritten signature somewhere in it — possibly on paper, with clutter, shadows, a desk, or other objects around it.
 
-Find the single tightest bounding box around the handwritten signature ink itself (not the whole paper, not surrounding text or printed labels).
+Find a GENEROUS bounding box around the handwritten signature ink — include all strokes, dots, underlines, and flourishes. It is much better to include a little extra background than to clip any part of the signature. Do NOT crop tightly — leave comfortable breathing room on all sides.
 
 Return ONLY a JSON object (no prose, no code fences):
 {"found":true,"x":<number>,"y":<number>,"width":<number>,"height":<number>}
-Coordinates are NORMALIZED: x,y is the TOP-LEFT corner as a fraction of image width/height (0..1); width,height are fractions too. Pad the box very slightly so no ink is clipped.
+Coordinates are NORMALIZED: x,y is the TOP-LEFT corner as a fraction of image width/height (0..1); width,height are fractions too. Add at least 10% padding around the ink so nothing gets clipped.
 If there is no handwritten signature in the image, return {"found":false}.`
 
 function parseDataUrl(image: string): { mediaType: string; data: string } | null {

@@ -1,11 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Move, Sparkles, Loader2, ScanSearch, Check } from 'lucide-react'
+import { Move, Sparkles, Loader2, ScanSearch, Check, PenLine, Type } from 'lucide-react'
 import DocumentPreview from '@/components/DocumentPreview'
 import SignaturePlacer from '@/components/SignaturePlacer'
+import TextPlacer from '@/components/TextPlacer'
 import { detectFields } from '@/lib/detectFields'
-import type { DetectedField, SignaturePlacement } from '@/types'
+import type { DetectedField, SignaturePlacement, TextAnnotation } from '@/types'
+
+type ActiveTool = 'signature' | 'text'
 
 type PreviewWorkspaceProps = {
   pdfFile: File
@@ -13,6 +16,8 @@ type PreviewWorkspaceProps = {
   onPlacement: (placement: SignaturePlacement) => void
   /** Sign every detected field on the current page (null clears it). */
   onSignAll: (placements: SignaturePlacement[] | null) => void
+  /** Called whenever text annotations change. */
+  onTextAnnotations?: (annotations: TextAnnotation[]) => void
 }
 
 type DetectStatus = 'idle' | 'detecting' | 'done' | 'error' | 'unconfigured'
@@ -46,9 +51,12 @@ export default function PreviewWorkspace({
   signatureDataUrl,
   onPlacement,
   onSignAll,
+  onTextAnnotations,
 }: PreviewWorkspaceProps) {
   const [pageIndex, setPageIndex] = useState(0)
   const [pageCount, setPageCount] = useState<number | null>(null)
+  const [activeTool, setActiveTool] = useState<ActiveTool>('signature')
+  const [textAnnotations, setTextAnnotations] = useState<TextAnnotation[]>([])
 
   // AI detection state
   const [status, setStatus] = useState<DetectStatus>('idle')
@@ -85,6 +93,21 @@ export default function PreviewWorkspace({
   const handleDimensions = useCallback((w: number, h: number) => {
     dimsRef.current = { w, h }
   }, [])
+
+  const handleTextAnnotationsChange = useCallback(
+    (anns: TextAnnotation[]) => {
+      // Stamp the current pageIndex + canvas dims onto each annotation
+      const stamped = anns.map((a) => ({
+        ...a,
+        pageIndex,
+        canvasWidth: dimsRef.current?.w ?? a.canvasWidth,
+        canvasHeight: dimsRef.current?.h ?? a.canvasHeight,
+      }))
+      setTextAnnotations(stamped)
+      onTextAnnotations?.(stamped)
+    },
+    [pageIndex, onTextAnnotations]
+  )
 
   const handlePlacementChange = useCallback(
     (p: Omit<SignaturePlacement, 'pageIndex'>) => {
@@ -216,13 +239,43 @@ export default function PreviewWorkspace({
         )}
       </div>
 
-      <p className="inline-flex items-center gap-2 rounded-full border border-border bg-page/60 px-3 py-1.5 text-xs font-medium text-secondary">
-        <Move className="h-3.5 w-3.5 text-accent-600" aria-hidden />
-        Drag to move · pull the corner to resize
-        {pageCount !== null && pageCount > 1 && (
-          <span className="text-muted">· navigate pages in the toolbar</span>
-        )}
-      </p>
+      {/* Tool toggle toolbar */}
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-page/60 px-2 py-1.5">
+        <button
+          type="button"
+          onClick={() => setActiveTool('signature')}
+          className={`focus-accent inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+            activeTool === 'signature'
+              ? 'bg-accent-600 text-white'
+              : 'text-secondary hover:bg-black/5'
+          }`}
+        >
+          <PenLine className="h-3.5 w-3.5" aria-hidden />
+          Signature
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTool('text')}
+          className={`focus-accent inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+            activeTool === 'text'
+              ? 'bg-accent-600 text-white'
+              : 'text-secondary hover:bg-black/5'
+          }`}
+        >
+          <Type className="h-3.5 w-3.5" aria-hidden />
+          Text
+        </button>
+        <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+        <p className="inline-flex items-center gap-2 text-xs font-medium text-secondary">
+          <Move className="h-3.5 w-3.5 text-accent-600" aria-hidden />
+          {activeTool === 'signature'
+            ? 'Drag to move · pull the corner to resize'
+            : 'Click to place text · drag to move'}
+          {pageCount !== null && pageCount > 1 && (
+            <span className="text-muted">· navigate pages in the toolbar</span>
+          )}
+        </p>
+      </div>
 
       <DocumentPreview
         pdfFile={pdfFile}
@@ -255,7 +308,7 @@ export default function PreviewWorkspace({
             ))}
 
             {/* Hide the draggable signature while a sign-all batch is active */}
-            {!signAllActive && (
+            {!signAllActive && activeTool === 'signature' && (
               <SignaturePlacer
                 signatureDataUrl={signatureDataUrl}
                 canvasWidth={width}
@@ -281,6 +334,19 @@ export default function PreviewWorkspace({
                   />
                 )
               })}
+
+            {/* Text annotations layer */}
+            <TextPlacer
+              annotations={textAnnotations.filter((a) => a.pageIndex === pageIndex)}
+              canvasWidth={width}
+              canvasHeight={height}
+              onAnnotationsChange={(pageAnns) => {
+                // Merge: keep annotations from other pages, replace this page's
+                const otherPages = textAnnotations.filter((a) => a.pageIndex !== pageIndex)
+                handleTextAnnotationsChange([...otherPages, ...pageAnns])
+              }}
+              active={activeTool === 'text'}
+            />
           </>
         )}
       />

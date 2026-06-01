@@ -33,7 +33,7 @@ async function toCompactJpeg(img: HTMLImageElement): Promise<string> {
 async function cropToBox(img: HTMLImageElement, box: Box, name: string): Promise<File> {
   const W = img.naturalWidth
   const H = img.naturalHeight
-  const pad = 0.04
+  const pad = 0.10
   const x0 = Math.max(0, (box.x - pad) * W)
   const y0 = Math.max(0, (box.y - pad) * H)
   const x1 = Math.min(W, (box.x + box.width + pad) * W)
