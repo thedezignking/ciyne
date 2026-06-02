@@ -10,6 +10,8 @@ type SignatureTyperProps = {
   onFontChange: (fontId: string) => void
   /** Emits a trimmed transparent PNG (or null when empty) on every change. */
   onRender: (trimmed: string | null) => void
+  /** Refined PNG shown as live preview (after ink/weight processing). */
+  previewUrl?: string | null
 }
 
 const FONTS = [
@@ -36,6 +38,7 @@ export default function SignatureTyper({
   onTextChange,
   onFontChange,
   onRender,
+  previewUrl,
 }: SignatureTyperProps) {
   const font = FONTS.find((f) => f.id === fontId) ?? FONTS[0]
 
@@ -127,6 +130,13 @@ export default function SignatureTyper({
           )
         })}
       </div>
+
+      {previewUrl && (
+        <div className="flex min-h-[72px] items-center justify-center overflow-hidden rounded-xl border border-border bg-[repeating-conic-gradient(#e7eaef_0%_25%,#f7f8fa_0%_50%)] bg-[length:16px_16px] p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={previewUrl} alt="Signature preview" className="max-h-20 max-w-full object-contain" />
+        </div>
+      )}
     </div>
   )
 }

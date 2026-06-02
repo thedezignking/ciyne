@@ -14,6 +14,8 @@ export type ProcessPayload = SignaturePlacement & {
   placements?: SignaturePlacement[]
   /** Optional text annotations to embed alongside signatures. */
   textAnnotations?: TextAnnotation[]
+  /** AI-detected text fields filled by the user. */
+  filledTextFields?: FilledTextField[]
 }
 
 /** A signature/date/initial field located on a page by AI, in normalized
@@ -37,6 +39,23 @@ export type TextAnnotation = {
   text: string
   canvasWidth: number
   canvasHeight: number
+}
+
+/** A placeholder text field detected by AI on a PDF page.
+ * Coordinates are normalized 0..1 relative to the page image. */
+export type TextFieldDetection = {
+  label: string
+  placeholder: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** A user-filled text field ready for embedding into the PDF. */
+export type FilledTextField = TextFieldDetection & {
+  value: string
+  pageIndex: number
 }
 
 export type AppStep = 1 | 2 | 3

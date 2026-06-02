@@ -4,14 +4,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Move, Sparkles, Loader2, ScanSearch, Check } from 'lucide-react'
 import DocumentPreview from '@/components/DocumentPreview'
 import SignaturePlacer from '@/components/SignaturePlacer'
+import TextFieldsPanel from '@/components/TextFieldsPanel'
 import { detectFields } from '@/lib/detectFields'
-import type { DetectedField, SignaturePlacement } from '@/types'
+import type { DetectedField, FilledTextField, SignaturePlacement } from '@/types'
 
 type PreviewWorkspaceProps = {
   pdfFile: File
   signatureDataUrl: string
   onPlacement: (placement: SignaturePlacement) => void
   onSignAll: (placements: SignaturePlacement[] | null) => void
+  onFilledFields: (fields: FilledTextField[]) => void
 }
 
 type DetectStatus = 'idle' | 'detecting' | 'done' | 'error' | 'unconfigured'
@@ -45,6 +47,7 @@ export default function PreviewWorkspace({
   signatureDataUrl,
   onPlacement,
   onSignAll,
+  onFilledFields,
 }: PreviewWorkspaceProps) {
   const [pageIndex, setPageIndex] = useState(0)
   const [pageCount, setPageCount] = useState<number | null>(null)
@@ -214,6 +217,13 @@ export default function PreviewWorkspace({
           </p>
         )}
       </div>
+
+      {/* AI text field detection + form fill */}
+      <TextFieldsPanel
+        pdfFile={pdfFile}
+        pageIndex={pageIndex}
+        onFilledFields={onFilledFields}
+      />
 
       <p className="flex items-center gap-2 text-xs font-medium text-secondary">
         <Move className="h-3.5 w-3.5 text-accent-600" aria-hidden />

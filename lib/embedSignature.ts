@@ -1,10 +1,11 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
-import type { SignaturePlacement, TextAnnotation } from '@/types'
+import type { SignaturePlacement, TextAnnotation, FilledTextField } from '@/types'
 
 export type EmbedSignatureInput = SignaturePlacement & {
   pdfBytes: ArrayBuffer
   signaturePngBytes: Uint8Array
   textAnnotations?: TextAnnotation[]
+  filledTextFields?: FilledTextField[]
 }
 
 /** A single placement in canvas-space coordinates. */
@@ -54,6 +55,9 @@ export async function embedSignature(
   if (input.textAnnotations && input.textAnnotations.length > 0) {
     await embedTextAnnotations(pdfDoc, input.textAnnotations)
   }
+  if (input.filledTextFields && input.filledTextFields.length > 0) {
+    await embedFilledTextFields(pdfDoc, input.filledTextFields)
+  }
 
   return pdfDoc.save()
 }
@@ -66,7 +70,8 @@ export async function embedSignatures(
   pdfBytes: ArrayBuffer,
   signaturePngBytes: Uint8Array,
   placements: Placement[],
-  textAnnotations?: TextAnnotation[]
+  textAnnotations?: TextAnnotation[],
+  filledTextFields?: FilledTextField[]
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(pdfBytes)
   const pages = pdfDoc.getPages()
@@ -88,6 +93,9 @@ export async function embedSignatures(
 
   if (textAnnotations && textAnnotations.length > 0) {
     await embedTextAnnotations(pdfDoc, textAnnotations)
+  }
+  if (filledTextFields && filledTextFields.length > 0) {
+    await embedFilledTextFields(pdfDoc, filledTextFields)
   }
 
   return pdfDoc.save()
@@ -131,6 +139,57 @@ export async function embedTextAnnotations(
       size: pdfFontSize,
       font,
       color: rgb(0.1, 0.1, 0.12), // #1a1a1e approx
+    })
+  }
+}
+
+/**
+ * Embeds user-filled text fields onto the PDF. For each field:
+ * 1. Draws a white rectangle over the original placeholder
+ * 2. Renders the user's text at the same position
+ *
+ * Field coordinates are normalized 0..1 relative to the page.
+ */
+export async function embedFilledTextFields(
+  pdfDoc: PDFDocument,
+  fields: FilledTextField[]
+): Promise<void> {
+  if (fields.length === 0) return
+
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const pages = pdfDoc.getPages()
+
+  for (const field of fields) {
+    if (!field.value.trim()) continue
+    if (field.pageIndex < 0 || field.pageIndex >= pages.length) continue
+
+    const page = pages[field.pageIndex]
+    const { width: pdfWidth, height: pdfHeight } = page.getSize()
+
+    const rectX = field.x * pdfWidth
+    const rectW = field.width * pdfWidth
+    const rectH = field.height * pdfHeight
+    const rectY = pdfHeight - (field.y + field.height) * pdfHeight
+
+    // Cover the placeholder with a white rectangle
+    page.drawRectangle({
+      x: rectX - 1,
+      y: rectY - 1,
+      width: rectW + 2,
+      height: rectH + 2,
+      color: rgb(1, 1, 1),
+    })
+
+    // Size the text to fit within the field height (with some padding)
+    const fontSize = Math.min(rectH * 0.7, 14)
+    const textY = rectY + (rectH - fontSize) / 2
+
+    page.drawText(field.value, {
+      x: rectX + 2,
+      y: textY,
+      size: fontSize,
+      font,
+      color: rgb(0.1, 0.1, 0.12),
     })
   }
 }

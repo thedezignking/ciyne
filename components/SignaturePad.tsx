@@ -11,6 +11,8 @@ type SignaturePadProps = {
   initialImage: string | null
   /** Emits (fullSnapshot, trimmed) on every change; nulls when cleared. */
   onChange: (full: string | null, trimmed: string | null) => void
+  /** Refined PNG shown on the canvas when idle (after ink/weight processing). */
+  previewUrl?: string | null
 }
 
 const BASE_MIN = 2.0
@@ -30,9 +32,10 @@ function midpoint(a: Pt, b: Pt) {
  * the chosen ink color and weight. The canvas restores from `initialImage` so
  * the drawing survives step navigation.
  */
-export default function SignaturePad({ color, initialImage, onChange }: SignaturePadProps) {
+export default function SignaturePad({ color, initialImage, onChange, previewUrl }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
+  const [isDrawing, setIsDrawing] = useState(false)
   const points = useRef<Pt[]>([])
   const lastMid = useRef<{ x: number; y: number } | null>(null)
   const width = useRef(BASE_MAX * 0.7)
@@ -107,6 +110,7 @@ export default function SignaturePad({ color, initialImage, onChange }: Signatur
   const start = (e: React.PointerEvent) => {
     e.preventDefault()
     drawing.current = true
+    setIsDrawing(true)
     const p = pos(e)
     points.current = [p]
     lastMid.current = { x: p.x, y: p.y }
@@ -158,6 +162,7 @@ export default function SignaturePad({ color, initialImage, onChange }: Signatur
   const end = (e: React.PointerEvent) => {
     if (!drawing.current) return
     drawing.current = false
+    setIsDrawing(false)
     points.current = []
     lastMid.current = null
     try {
@@ -194,6 +199,12 @@ export default function SignaturePad({ color, initialImage, onChange }: Signatur
           <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted">
             Draw your signature here
           </span>
+        )}
+        {previewUrl && hasInk && !isDrawing && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-[repeating-conic-gradient(#e7eaef_0%_25%,#f7f8fa_0%_50%)] bg-[length:16px_16px] p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewUrl} alt="Refined preview" className="max-h-full max-w-full object-contain" />
+          </div>
         )}
       </div>
 
