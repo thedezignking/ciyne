@@ -14,12 +14,14 @@ const SYSTEM = `You are a document analysis assistant. You are given an image of
 - Blank fields with labels above or beside them
 
 Return ONLY a JSON array (no prose, no code fences). Each item:
-{"label":"<human-readable label>","placeholder":"<exact text found>","x":<number>,"y":<number>,"width":<number>,"height":<number>}
+{"label":"<human-readable label>","placeholder":"<exact text found>","x":<number>,"y":<number>,"width":<number>,"height":<number>,"fontScale":<number>,"fontColor":"<hex>"}
 
 - "label" is a short human-friendly name like "Full Name", "Date", "Title", "Company", "Email", "Address", "Phone"
 - "placeholder" is the exact text as it appears on the page (e.g. "[Your Name]" or "___________")
 - Coordinates are NORMALIZED to the image: x,y is the TOP-LEFT of the field as a fraction of image width/height (0..1); width,height are fractions too
-- Make the box tightly cover just the placeholder text/blank area
+- Make the box TIGHTLY cover ONLY the placeholder text — no extra padding. The box must match the exact visual bounds of the text that will be replaced.
+- "fontScale" is the estimated font size of the placeholder text as a fraction of the total page height (e.g. 0.015 for ~12pt text on a standard letter page). Measure the cap-height of the text characters to estimate this accurately.
+- "fontColor" is the hex color of the text near the placeholder (e.g. "#000000" for black, "#333333" for dark gray). Match the color of surrounding body text, not the placeholder brackets.
 - Do NOT include signature fields (those are handled separately)
 - If there are no text placeholders, return []`
 
@@ -50,7 +52,10 @@ function coerceFields(raw: unknown): TextFieldDetection[] {
     height = Math.min(height, 1 - y)
     const label = String(o.label ?? 'Text').slice(0, 50)
     const placeholder = String(o.placeholder ?? '').slice(0, 200)
-    out.push({ label, placeholder, x, y, width, height })
+    const fontScale = Math.max(0.005, Math.min(0.1, Number(o.fontScale) || 0.015))
+    const rawColor = String(o.fontColor ?? '#000000').trim()
+    const fontColor = /^#[0-9a-fA-F]{6}$/.test(rawColor) ? rawColor : '#000000'
+    out.push({ label, placeholder, x, y, width, height, fontScale, fontColor })
   }
   return out
 }

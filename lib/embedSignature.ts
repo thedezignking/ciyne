@@ -143,12 +143,22 @@ export async function embedTextAnnotations(
   }
 }
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace('#', '')
+  return {
+    r: parseInt(h.slice(0, 2), 16) / 255,
+    g: parseInt(h.slice(2, 4), 16) / 255,
+    b: parseInt(h.slice(4, 6), 16) / 255,
+  }
+}
+
 /**
- * Embeds user-filled text fields onto the PDF. For each field:
- * 1. Draws a white rectangle over the original placeholder
- * 2. Renders the user's text at the same position
+ * Replaces placeholder text in the PDF with user-provided values.
  *
- * Field coordinates are normalized 0..1 relative to the page.
+ * Uses the AI-detected font size and color so the replacement text matches
+ * the surrounding document text. A white rectangle covers the original
+ * placeholder flush to its bounds, then the new text is drawn at the same
+ * baseline — making the edit visually indistinguishable from native text.
  */
 export async function embedFilledTextFields(
   pdfDoc: PDFDocument,
@@ -171,25 +181,36 @@ export async function embedFilledTextFields(
     const rectH = field.height * pdfHeight
     const rectY = pdfHeight - (field.y + field.height) * pdfHeight
 
-    // Cover the placeholder with a white rectangle
+    // Cover the placeholder flush — no extra padding so no visible white border
     page.drawRectangle({
-      x: rectX - 1,
-      y: rectY - 1,
-      width: rectW + 2,
-      height: rectH + 2,
+      x: rectX,
+      y: rectY,
+      width: rectW,
+      height: rectH,
       color: rgb(1, 1, 1),
     })
 
-    // Size the text to fit within the field height (with some padding)
-    const fontSize = Math.min(rectH * 0.7, 14)
-    const textY = rectY + (rectH - fontSize) / 2
+    // Use the AI-detected font size (as fraction of page height) converted to points.
+    // Fall back to fitting inside the field height if fontScale is missing.
+    const fontSize = field.fontScale > 0
+      ? field.fontScale * pdfHeight
+      : rectH * 0.75
+
+    // Match the document's text color from the AI detection
+    const { r, g, b } = hexToRgb(field.fontColor || '#000000')
+
+    // Position baseline: the bottom of the field box, offset up by the
+    // font descender (~20% of font size). This aligns the text baseline
+    // with where the original text sat.
+    const descenderOffset = fontSize * 0.2
+    const textY = rectY + descenderOffset
 
     page.drawText(field.value, {
-      x: rectX + 2,
+      x: rectX,
       y: textY,
       size: fontSize,
       font,
-      color: rgb(0.1, 0.1, 0.12),
+      color: rgb(r, g, b),
     })
   }
 }
