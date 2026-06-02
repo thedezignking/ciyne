@@ -1,4 +1,5 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, PDFName, PDFRawStream, PDFRef, PDFArray, StandardFonts, rgb } from 'pdf-lib'
+import { inflateSync, deflateSync } from 'zlib'
 import type { SignaturePlacement, TextAnnotation, FilledTextField } from '@/types'
 
 export type EmbedSignatureInput = SignaturePlacement & {
@@ -143,22 +144,21 @@ export async function embedTextAnnotations(
   }
 }
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const h = hex.replace('#', '')
-  return {
-    r: parseInt(h.slice(0, 2), 16) / 255,
-    g: parseInt(h.slice(2, 4), 16) / 255,
-    b: parseInt(h.slice(4, 6), 16) / 255,
-  }
+function strToHex(s: string): string {
+  return Buffer.from(s, 'binary').toString('hex').toUpperCase()
 }
 
 /**
- * Replaces placeholder text in the PDF with user-provided values.
+ * Replaces placeholder text directly in the PDF's content streams.
  *
- * Uses the AI-detected font size and color so the replacement text matches
- * the surrounding document text. A white rectangle covers the original
- * placeholder flush to its bounds, then the new text is drawn at the same
- * baseline — making the edit visually indistinguishable from native text.
+ * Instead of covering text with a white rectangle, this modifies the actual
+ * PDF operators so the placeholder string is swapped for the user's value.
+ * The result uses the document's original font, size, color, and position —
+ * making it a true edit, not an overlay.
+ *
+ * Falls back to a white-rect + overlay approach only if the placeholder
+ * string can't be found in the content stream (e.g. split across operators
+ * or using a non-standard font encoding).
  */
 export async function embedFilledTextFields(
   pdfDoc: PDFDocument,
@@ -166,52 +166,134 @@ export async function embedFilledTextFields(
 ): Promise<void> {
   if (fields.length === 0) return
 
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const pages = pdfDoc.getPages()
+  const context = pdfDoc.context
 
-  for (const field of fields) {
-    if (!field.value.trim()) continue
-    if (field.pageIndex < 0 || field.pageIndex >= pages.length) continue
+  // Group fields by page
+  const byPage = new Map<number, FilledTextField[]>()
+  for (const f of fields) {
+    if (!f.value.trim() || f.pageIndex < 0 || f.pageIndex >= pages.length) continue
+    const arr = byPage.get(f.pageIndex) ?? []
+    arr.push(f)
+    byPage.set(f.pageIndex, arr)
+  }
 
-    const page = pages[field.pageIndex]
-    const { width: pdfWidth, height: pdfHeight } = page.getSize()
+  // Fields that couldn't be replaced in the content stream
+  const fallbacks: FilledTextField[] = []
 
-    const rectX = field.x * pdfWidth
-    const rectW = field.width * pdfWidth
-    const rectH = field.height * pdfHeight
-    const rectY = pdfHeight - (field.y + field.height) * pdfHeight
+  for (const pageIndex of Array.from(byPage.keys())) {
+    const pageFields = byPage.get(pageIndex)!
+    const page = pages[pageIndex]
+    const contentsEntry = page.node.get(PDFName.of('Contents'))
+    if (!contentsEntry) {
+      fallbacks.push(...pageFields)
+      continue
+    }
 
-    // Cover the placeholder flush — no extra padding so no visible white border
-    page.drawRectangle({
-      x: rectX,
-      y: rectY,
-      width: rectW,
-      height: rectH,
-      color: rgb(1, 1, 1),
-    })
+    // Collect all content stream refs for this page
+    const streamRefs: PDFRef[] = []
+    if (contentsEntry instanceof PDFRef) {
+      streamRefs.push(contentsEntry)
+    } else if (contentsEntry instanceof PDFArray) {
+      for (let i = 0; i < contentsEntry.size(); i++) {
+        const el = contentsEntry.get(i)
+        if (el instanceof PDFRef) streamRefs.push(el)
+      }
+    }
 
-    // Use the AI-detected font size (as fraction of page height) converted to points.
-    // Fall back to fitting inside the field height if fontScale is missing.
-    const fontSize = field.fontScale > 0
-      ? field.fontScale * pdfHeight
-      : rectH * 0.75
+    // Track which fields were successfully replaced
+    const replaced = new Set<number>()
 
-    // Match the document's text color from the AI detection
-    const { r, g, b } = hexToRgb(field.fontColor || '#000000')
+    for (const ref of streamRefs) {
+      const stream = context.lookup(ref)
+      if (!(stream instanceof PDFRawStream)) continue
 
-    // Position baseline: the bottom of the field box, offset up by the
-    // font descender (~20% of font size). This aligns the text baseline
-    // with where the original text sat.
-    const descenderOffset = fontSize * 0.2
-    const textY = rectY + descenderOffset
+      const filter = stream.dict.get(PDFName.of('Filter'))
+      const isFlate = filter?.toString() === '/FlateDecode'
 
-    page.drawText(field.value, {
-      x: rectX,
-      y: textY,
-      size: fontSize,
-      font,
-      color: rgb(r, g, b),
-    })
+      let raw: Buffer
+      try {
+        raw = isFlate
+          ? inflateSync(Buffer.from(stream.contents))
+          : Buffer.from(stream.contents)
+      } catch {
+        continue
+      }
+
+      let text = raw.toString('binary')
+      let modified = false
+
+      for (let fi = 0; fi < pageFields.length; fi++) {
+        if (replaced.has(fi)) continue
+        const field = pageFields[fi]
+
+        // Try hex-encoded string: <5B596F7572204E616D655D>
+        const hexSearch = strToHex(field.placeholder)
+        const hexReplace = strToHex(field.value)
+        const hexRegex = new RegExp(hexSearch, 'gi')
+        if (hexRegex.test(text)) {
+          text = text.replace(hexRegex, hexReplace)
+          modified = true
+          replaced.add(fi)
+          continue
+        }
+
+        // Try literal parenthesized string: ([Your Name])
+        const litSearch = field.placeholder.replace(/([()\\])/g, '\\$1')
+        const litReplace = field.value.replace(/([()\\])/g, '\\$1')
+        if (text.includes(litSearch)) {
+          text = text.split(litSearch).join(litReplace)
+          modified = true
+          replaced.add(fi)
+        }
+      }
+
+      if (modified) {
+        const newRaw = Buffer.from(text, 'binary')
+        const newContents = isFlate ? deflateSync(newRaw) : newRaw
+        const newStream = PDFRawStream.of(stream.dict, newContents)
+        context.assign(ref, newStream)
+      }
+    }
+
+    // Any fields not found in the content stream fall back to overlay
+    for (let fi = 0; fi < pageFields.length; fi++) {
+      if (!replaced.has(fi)) fallbacks.push(pageFields[fi])
+    }
+  }
+
+  // Fallback: white rect + text overlay for fields not found in content streams
+  if (fallbacks.length > 0) {
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+    for (const field of fallbacks) {
+      const page = pages[field.pageIndex]
+      const { width: pdfWidth, height: pdfHeight } = page.getSize()
+
+      const rectX = field.x * pdfWidth
+      const rectW = field.width * pdfWidth
+      const rectH = field.height * pdfHeight
+      const rectY = pdfHeight - (field.y + field.height) * pdfHeight
+
+      page.drawRectangle({
+        x: rectX,
+        y: rectY,
+        width: rectW,
+        height: rectH,
+        color: rgb(1, 1, 1),
+      })
+
+      const fontSize = field.fontScale > 0
+        ? field.fontScale * pdfHeight
+        : rectH * 0.75
+
+      page.drawText(field.value, {
+        x: rectX,
+        y: rectY + fontSize * 0.2,
+        size: fontSize,
+        font,
+        color: rgb(0, 0, 0),
+      })
+    }
   }
 }
 
