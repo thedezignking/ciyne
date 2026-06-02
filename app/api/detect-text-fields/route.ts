@@ -5,23 +5,33 @@ import { runVision } from '@/lib/visionProvider'
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
-const SYSTEM = `You are a document analysis assistant. You are given an image of a single PDF page. Identify every placeholder or blank field where a user needs to type personal information — for example:
+const SYSTEM = `You are a document analysis assistant. You are given an image of a single PDF page.
 
-- "[Your Name]", "[Full Name]", "[Signature]", "[Date]", "[Title]", "[Company]"
-- "___________" (blank lines meant for handwriting)
-- "Name: ____________", "Date: ____________"
-- Any bracketed placeholder like [Enter X here]
-- Blank fields with labels above or beside them
+Your job is to find ONLY unfilled placeholder text — dummy text that needs to be replaced with real information. These are things like:
+
+INCLUDE (unfilled placeholders):
+- Bracketed placeholders: "[Your Name]", "[Full Name]", "[Date]", "[Title]", "[Company]", "[Enter name here]"
+- Blank lines meant for handwriting: "___________", "____________"
+- Labeled blanks: "Name: ____________", "Date: ____________", "I, ____________, hereby..."
+- Obvious dummy/template text in brackets or with underscores
+
+DO NOT INCLUDE (already filled or real content):
+- Names that are already typed/written (e.g. "John Smith", "Jane Doe")
+- Dates that are already filled in (e.g. "January 1, 2025", "01/01/2025")
+- Any real, meaningful text that is NOT a placeholder
+- Section headings, paragraph text, legal language, instructions
+- Signature fields (those are handled separately)
 
 Return ONLY a JSON array (no prose, no code fences). Each item:
-{"label":"<human-readable label>","placeholder":"<exact text found>","x":<number>,"y":<number>,"width":<number>,"height":<number>}
+{"label":"<human-readable label>","placeholder":"<exact placeholder text found>","x":<number>,"y":<number>,"width":<number>,"height":<number>,"fontScale":<number>,"fontColor":"<hex>"}
 
 - "label" is a short human-friendly name like "Full Name", "Date", "Title", "Company", "Email", "Address", "Phone"
-- "placeholder" is the exact text as it appears on the page (e.g. "[Your Name]" or "___________")
-- Coordinates are NORMALIZED to the image: x,y is the TOP-LEFT of the field as a fraction of image width/height (0..1); width,height are fractions too
-- Make the box tightly cover just the placeholder text/blank area
-- Do NOT include signature fields (those are handled separately)
-- If there are no text placeholders, return []`
+- "placeholder" is the EXACT dummy text as it appears on the page (e.g. "[Your Name]" or "___________")
+- Coordinates are NORMALIZED to the image: x,y is the TOP-LEFT as a fraction of image width/height (0..1); width,height are fractions too
+- Make the box TIGHTLY cover ONLY the placeholder text — no extra padding
+- "fontScale" is the estimated font size as a fraction of total page height (e.g. 0.015 for ~12pt on a letter page)
+- "fontColor" is the hex color of surrounding body text (e.g. "#000000"), NOT the placeholder brackets
+- If there are no unfilled placeholders, return []`
 
 function parseDataUrl(image: string): { mediaType: string; data: string } | null {
   const m = /^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/i.exec(image)
@@ -50,7 +60,10 @@ function coerceFields(raw: unknown): TextFieldDetection[] {
     height = Math.min(height, 1 - y)
     const label = String(o.label ?? 'Text').slice(0, 50)
     const placeholder = String(o.placeholder ?? '').slice(0, 200)
-    out.push({ label, placeholder, x, y, width, height })
+    const fontScale = Math.max(0.005, Math.min(0.1, Number(o.fontScale) || 0.015))
+    const rawColor = String(o.fontColor ?? '#000000').trim()
+    const fontColor = /^#[0-9a-fA-F]{6}$/.test(rawColor) ? rawColor : '#000000'
+    out.push({ label, placeholder, x, y, width, height, fontScale, fontColor })
   }
   return out
 }
@@ -87,7 +100,7 @@ export async function POST(request: NextRequest) {
 
   const result = await runVision({
     system: SYSTEM,
-    userText: 'Find all text placeholder fields on this page (names, dates, titles, etc). Do NOT include signature fields.',
+    userText: 'Find ONLY unfilled placeholder text on this page — things like [Your Name], [Date], blank lines (______), or bracketed dummy text. Do NOT include text that is already filled in with real names, dates, or content. Do NOT include signature fields.',
     image: parsed,
     maxTokens: 2048,
   })

@@ -50,6 +50,10 @@ export type TextFieldDetection = {
   y: number
   width: number
   height: number
+  /** Estimated font size of the placeholder as a fraction of page height. */
+  fontScale: number
+  /** Hex color of the surrounding text, e.g. "#000000". */
+  fontColor: string
 }
 
 /** A user-filled text field ready for embedding into the PDF. */
