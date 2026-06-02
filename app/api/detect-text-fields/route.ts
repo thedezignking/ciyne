@@ -102,10 +102,11 @@ export async function POST(request: NextRequest) {
     system: SYSTEM,
     userText: 'Find ONLY unfilled placeholder text on this page — things like [Your Name], [Date], blank lines (______), or bracketed dummy text. Do NOT include text that is already filled in with real names, dates, or content. Do NOT include signature fields.',
     image: parsed,
-    maxTokens: 2048,
+    maxTokens: 1024,
   })
 
   if (!result.ok) {
+    console.error('Text field detection failed:', result)
     return NextResponse.json(
       { error: result.error, configured: result.configured },
       { status: result.status }

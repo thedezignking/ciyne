@@ -48,20 +48,24 @@ export async function runVision(input: VisionInput): Promise<VisionResult> {
   // the next. Only if all fail do we return a single, sanitized message so raw
   // provider text (e.g. billing notices) never reaches the UI.
   let last: VisionResult | null = null
+  const errors: string[] = []
   for (const attempt of attempts) {
     const result = await attempt()
     if (result.ok) return result
     last = result
+    errors.push(`[${result.status}] ${result.error}`)
   }
 
+  console.error('All vision providers failed:', errors.join(' | '))
+
+  const any429 = errors.some((e) => e.startsWith('[429]'))
   return {
     ok: false,
     configured: true,
-    status: last?.status ?? 502,
-    error:
-      last?.status === 429
-        ? 'The AI service is busy right now. Please try again in a moment.'
-        : 'AI assistance is temporarily unavailable.',
+    status: any429 ? 429 : (last?.status ?? 502),
+    error: any429
+      ? 'The AI service is busy right now. Please try again in a moment.'
+      : 'AI assistance is temporarily unavailable. Please try again.',
   }
 }
 
@@ -72,52 +76,65 @@ type GeminiResponse = {
 
 async function runGemini(input: VisionInput, key: string): Promise<VisionResult> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: input.system }] },
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { inline_data: { mime_type: input.image.mediaType, data: input.image.data } },
-              { text: input.userText },
-            ],
-          },
+  const body = JSON.stringify({
+    system_instruction: { parts: [{ text: input.system }] },
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { inline_data: { mime_type: input.image.mediaType, data: input.image.data } },
+          { text: input.userText },
         ],
-        generationConfig: {
-          maxOutputTokens: input.maxTokens ?? 1024,
-          temperature: 0,
-          // 2.5 models spend "thinking" tokens by default, which can swallow
-          // the entire output budget. We only need the final JSON, so disable it.
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
-    })
+      },
+    ],
+    generationConfig: {
+      maxOutputTokens: input.maxTokens ?? 1024,
+      temperature: 0,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  })
+  const headers = { 'content-type': 'application/json', 'x-goog-api-key': key }
 
-    const data = (await res.json()) as GeminiResponse
-    if (!res.ok) {
+  // Retry once on 429 (Gemini free tier has tight per-minute limits)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { method: 'POST', headers, body })
+      const data = (await res.json()) as GeminiResponse
+
+      if (res.status === 429 && attempt === 0) {
+        await new Promise((r) => setTimeout(r, 3000))
+        continue
+      }
+
+      if (!res.ok) {
+        return {
+          ok: false,
+          configured: true,
+          status: res.status === 429 ? 429 : 502,
+          error: data.error?.message ?? 'Gemini request failed',
+        }
+      }
+
+      const text = (data.candidates?.[0]?.content?.parts ?? [])
+        .map((p) => p.text ?? '')
+        .join('\n')
+      return { ok: true, text }
+    } catch (err) {
+      if (attempt === 0) continue
       return {
         ok: false,
         configured: true,
-        status: res.status === 429 ? 429 : 502,
-        error: data.error?.message ?? 'Gemini request failed',
+        status: 500,
+        error: err instanceof Error ? err.message : 'Gemini request failed',
       }
     }
+  }
 
-    const text = (data.candidates?.[0]?.content?.parts ?? [])
-      .map((p) => p.text ?? '')
-      .join('\n')
-    return { ok: true, text }
-  } catch (err) {
-    return {
-      ok: false,
-      configured: true,
-      status: 500,
-      error: err instanceof Error ? err.message : 'Gemini request failed',
-    }
+  return {
+    ok: false,
+    configured: true,
+    status: 429,
+    error: 'Gemini rate limited after retry',
   }
 }
 
