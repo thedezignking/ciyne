@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { embedSignature, embedSignatures, dataUrlToUint8Array } from '@/lib/embedSignature'
+import { embedSignature, embedSignatures, embedFilledTextFields, dataUrlToUint8Array } from '@/lib/embedSignature'
 import type { Placement } from '@/lib/embedSignature'
 import { MAX_PDF_BYTES } from '@/types'
-import type { TextAnnotation } from '@/types'
+import type { TextAnnotation, FilledTextField } from '@/types'
 
 export const runtime = 'nodejs'
 
@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'PDF must be 20MB or smaller' }, { status: 400 })
     }
 
+    const filledFieldsRaw = formData.get('filledTextFields')
+
     const pdfBytes = await originalPDF.arrayBuffer()
     const signaturePngBytes = dataUrlToUint8Array(signatureImage)
 
@@ -81,6 +83,22 @@ export async function POST(request: NextRequest) {
       textAnnotations = (parsed as TextAnnotation[]).filter((a) => a.text.trim().length > 0)
     }
 
+    // Parse optional filled text fields (AI form-fill)
+    let filledFields: FilledTextField[] | undefined
+    if (typeof filledFieldsRaw === 'string' && filledFieldsRaw.length > 0) {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(filledFieldsRaw)
+      } catch {
+        return NextResponse.json({ error: 'Invalid filled text fields' }, { status: 400 })
+      }
+      if (Array.isArray(parsed)) {
+        filledFields = (parsed as FilledTextField[]).filter(
+          (f) => f.value && f.value.trim().length > 0
+        )
+      }
+    }
+
     // Batch path: embed the signature on multiple fields (sign-all).
     if (typeof placementsRaw === 'string' && placementsRaw.length > 0) {
       let parsed: unknown
@@ -93,7 +111,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid placements' }, { status: 400 })
       }
 
-      const signedPdf = await embedSignatures(pdfBytes, signaturePngBytes, parsed as Placement[], textAnnotations)
+      const signedPdf = await embedSignatures(pdfBytes, signaturePngBytes, parsed as Placement[], textAnnotations, filledFields)
       const filename = originalPDF.name.replace(/\.pdf$/i, '') + '-signed.pdf' || 'signed.pdf'
       return new NextResponse(Buffer.from(signedPdf), {
         status: 200,
@@ -121,6 +139,7 @@ export async function POST(request: NextRequest) {
       canvasWidth,
       canvasHeight,
       textAnnotations,
+      filledTextFields: filledFields,
     })
 
     const filename =

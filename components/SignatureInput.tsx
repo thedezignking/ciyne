@@ -105,13 +105,14 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
         })}
       </div>
 
-      {/* Draw mode: canvas + ink controls + inline preview */}
+      {/* Draw mode: canvas with overlay preview + ink controls */}
       {mode === 'draw' && (
         <div className="space-y-4">
           <SignaturePad
             color={color === 'black' ? SWATCH.black : SWATCH.navy}
             initialImage={draft.drawFull}
             onChange={(full, trimmed) => onDraftChange({ drawFull: full, drawTrimmed: trimmed })}
+            previewUrl={refinedUrl}
           />
           <InkControls
             options={colorOptions}
@@ -121,11 +122,10 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
             onWeightChange={(w) => onDraftChange({ weight: w })}
             disabled={!activeSource}
           />
-          <InlinePreview url={refinedUrl} />
         </div>
       )}
 
-      {/* Type mode: typer + ink controls + inline preview */}
+      {/* Type mode: typer with inline preview + ink controls */}
       {mode === 'type' && (
         <div className="space-y-4">
           <SignatureTyper
@@ -134,6 +134,7 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
             onTextChange={(t) => onDraftChange({ typeText: t })}
             onFontChange={(f) => onDraftChange({ typeFontId: f })}
             onRender={(trimmed) => onDraftChange({ typeTrimmed: trimmed })}
+            previewUrl={refinedUrl}
           />
           <InkControls
             options={colorOptions}
@@ -143,7 +144,6 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
             onWeightChange={(w) => onDraftChange({ weight: w })}
             disabled={!activeSource}
           />
-          <InlinePreview url={refinedUrl} />
         </div>
       )}
 
@@ -180,6 +180,7 @@ export default function SignatureInput({ draft, onDraftChange, onSignature }: Si
               weight={weight}
               onWeightChange={(w) => onDraftChange({ weight: w })}
               uploadTrimmed={draft.uploadTrimmed}
+              refinedUrl={refinedUrl}
             />
           )}
         </div>
@@ -211,6 +212,7 @@ function UploadResultCard({
   weight,
   onWeightChange,
   uploadTrimmed,
+  refinedUrl,
 }: {
   file: File
   croppedFile: File | null
@@ -225,6 +227,7 @@ function UploadResultCard({
   weight: number
   onWeightChange: (w: number) => void
   uploadTrimmed: string | null
+  refinedUrl: string | null
 }) {
   // --- AI extraction logic (formerly AutoExtract) ---
   const [aiMessage, setAiMessage] = useState<string | null>(null)
@@ -364,13 +367,14 @@ function UploadResultCard({
         </p>
       )}
 
-      {/* Cleaned preview on checkerboard, with optional spinner overlay */}
+      {/* Signature preview on checkerboard — shows the final refined result
+           (ink color + weight) when available, otherwise the cleaned version. */}
       <div className="relative flex min-h-[140px] items-center justify-center overflow-hidden rounded-xl border border-border bg-[repeating-conic-gradient(#e7eaef_0%_25%,#f7f8fa_0%_50%)] bg-[length:16px_16px] p-4">
-        {previewUrl ? (
+        {(refinedUrl || previewUrl) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={previewUrl}
-            alt="Cleaned signature preview"
+            src={refinedUrl ?? previewUrl!}
+            alt="Signature preview"
             className="max-h-44 max-w-full object-contain"
           />
         ) : (
@@ -518,13 +522,3 @@ function InkControls({
   )
 }
 
-/** Shows the refined signature inline below the draw/type panel. */
-function InlinePreview({ url }: { url: string | null }) {
-  if (!url) return null
-  return (
-    <div className="flex min-h-[80px] items-center justify-center overflow-hidden rounded-xl border border-border bg-[repeating-conic-gradient(#e7eaef_0%_25%,#f7f8fa_0%_50%)] bg-[length:16px_16px] p-3">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="Signature preview" className="max-h-24 max-w-full object-contain" />
-    </div>
-  )
-}
