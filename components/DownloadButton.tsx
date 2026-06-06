@@ -15,7 +15,35 @@ type DownloadButtonProps = {
 type ReadyState = {
   url: string
   filename: string
-  file: File
+  blob: Blob
+  file: File | null
+}
+
+function detectPlatform() {
+  if (typeof navigator === 'undefined') return { isIOS: false, isInApp: false }
+  const ua = navigator.userAgent
+  const isIOS = /iPad|iPhone|iPod/.test(ua) ||
+    (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+  const isInApp = /FBAN|FBAV|Instagram|Line\/|Twitter|TikTok|Snapchat|Pinterest/i.test(ua)
+  return { isIOS, isInApp }
+}
+
+function tryCreateFile(blob: Blob, name: string): File | null {
+  try {
+    return new File([blob], name, { type: 'application/pdf', lastModified: Date.now() })
+  } catch {
+    return null
+  }
+}
+
+function tryCanShareFiles(): boolean {
+  try {
+    if (typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return false
+    const probe = new File([new Uint8Array([0x25, 0x50, 0x44, 0x46])], 'test.pdf', { type: 'application/pdf' })
+    return navigator.canShare({ files: [probe] })
+  } catch {
+    return false
+  }
 }
 
 export default function DownloadButton({
@@ -28,8 +56,8 @@ export default function DownloadButton({
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState<ReadyState | null>(null)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
-  const [canShareFiles, setCanShareFiles] = useState(false)
-  const [isIOS, setIsIOS] = useState(false)
+  const [platform, setPlatform] = useState({ isIOS: false, isInApp: false })
+  const [canShare, setCanShare] = useState(false)
 
   const urlRef = useRef<string | null>(null)
   useEffect(() => () => {
@@ -37,55 +65,11 @@ export default function DownloadButton({
   }, [])
 
   useEffect(() => {
-    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-    const iOSLike = /iPad|iPhone|iPod/.test(ua) ||
-      (/Macintosh/.test(ua) && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1)
-    setIsIOS(iOSLike)
-
-    try {
-      const probe = new File([new Blob(['test'])], 'probe.pdf', { type: 'application/pdf' })
-      setCanShareFiles(
-        typeof navigator !== 'undefined' &&
-          typeof navigator.canShare === 'function' &&
-          navigator.canShare({ files: [probe] })
-      )
-    } catch {
-      setCanShareFiles(false)
-    }
+    setPlatform(detectPlatform())
+    setCanShare(tryCanShareFiles())
   }, [])
 
-  // Desktop/Android: programmatic <a download> works fine.
-  function doAnchorDownload(state: ReadyState) {
-    const a = document.createElement('a')
-    a.href = state.url
-    a.download = state.filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setSavedAt(new Date())
-  }
-
-  // iOS: navigator.share is the most reliable way to save files.
-  // Must be called from a direct user tap (user gesture required).
-  async function doIOSShare() {
-    if (!ready) return
-    try {
-      await navigator.share({ files: [ready.file], title: ready.filename })
-      setSavedAt(new Date())
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
-      // Share failed — fall back to opening in a new tab
-      doIOSOpenTab()
-    }
-  }
-
-  // iOS fallback: open the blob URL in a new tab. Safari shows its native
-  // toolbar with a share/save button the user can tap.
-  function doIOSOpenTab() {
-    if (!ready) return
-    window.open(ready.url, '_blank')
-    setSavedAt(new Date())
-  }
+  const { isIOS, isInApp } = platform
 
   async function handleApplyAndDownload() {
     if (!payload) return
@@ -99,9 +83,6 @@ export default function DownloadButton({
     }
 
     try {
-      // If text fields were filled, create a brand new PDF first:
-      // server blanks placeholders from content streams → client renders
-      // cleaned pages → draws replacement text → builds new image-based PDF.
       let finalPdf = pdfFile
       if (payload.filledTextFields && payload.filledTextFields.length > 0) {
         finalPdf = await createCleanPdf(pdfFile, payload.filledTextFields)
@@ -131,23 +112,52 @@ export default function DownloadButton({
       }
 
       const blob = await res.blob()
+      if (!blob || blob.size === 0) {
+        throw new Error('Server returned an empty PDF')
+      }
+
       const filename = (pdfFile.name.replace(/\.pdf$/i, '') || 'signed') + '-signed.pdf'
       const url = URL.createObjectURL(blob)
       urlRef.current = url
-      const file = new File([blob], filename, { type: 'application/pdf' })
-      const state = { url, filename, file }
+      const file = tryCreateFile(blob, filename)
+
+      const state: ReadyState = { url, filename, blob, file }
       setReady(state)
 
-      // On iOS, NEVER auto-fire — async fetch breaks the user gesture chain,
-      // so window.open / <a>.click would be blocked. Instead, show the "ready"
-      // card and let the user tap a button (a fresh user gesture).
-      if (!isIOS) {
-        doAnchorDownload(state)
+      // On iOS / in-app browsers, NEVER auto-fire. The async fetch breaks
+      // the user gesture chain, so any programmatic navigation gets blocked.
+      // Show the ready card and let the user tap (= fresh user gesture).
+      if (!isIOS && !isInApp) {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setSavedAt(new Date())
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleShare() {
+    if (!ready) return
+    const file = ready.file ?? tryCreateFile(ready.blob, ready.filename)
+    if (!file) {
+      // File constructor failed — fall back to link
+      setSavedAt(new Date())
+      return
+    }
+    try {
+      await navigator.share({ files: [file], title: ready.filename })
+      setSavedAt(new Date())
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      // Share threw — mark as attempted so user sees the link fallback
+      setError('Could not open share sheet. Use the link below to open your PDF.')
     }
   }
 
@@ -166,57 +176,78 @@ export default function DownloadButton({
               {savedAt ? 'Your document is signed' : 'Your signed document is ready'}
             </p>
             <p className="mt-0.5 truncate text-sm font-medium text-secondary">{ready.filename}</p>
-            <p className="mt-1 text-xs text-muted">
-              {savedAt
-                ? `Saved ${time}`
-                : isIOS
-                  ? 'Tap below to save it to your device.'
-                  : 'Your download should start automatically.'}
-            </p>
+            {savedAt ? (
+              <p className="mt-1 text-xs text-muted">Saved {time}</p>
+            ) : isIOS || isInApp ? (
+              <p className="mt-1 text-xs text-muted">Tap below to save it to your device.</p>
+            ) : (
+              <p className="mt-1 text-xs text-muted">Your download should start automatically.</p>
+            )}
           </div>
         </div>
+
+        {/* In-app browser warning */}
+        {isInApp && (
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+            For the best experience, open this page in Safari or Chrome. Tap the
+            &ldquo;⋯&rdquo; menu and select &ldquo;Open in browser.&rdquo;
+          </p>
+        )}
+
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-          {isIOS ? (
+          {isIOS || isInApp ? (
             <>
-              {/* iOS primary: share sheet (most reliable save method) */}
-              {canShareFiles && (
+              {/* iOS/in-app primary: navigator.share (opens native share sheet) */}
+              {canShare && (
                 <button
                   type="button"
-                  onClick={() => void doIOSShare()}
+                  onClick={() => void handleShare()}
                   className="focus-accent inline-flex items-center justify-center gap-2 rounded-full bg-accent-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
                 >
                   <Share2 className="h-4 w-4" aria-hidden />
                   Save to device
                 </button>
               )}
-              {/* iOS secondary/fallback: open in new tab (Safari shows toolbar) */}
-              <button
-                type="button"
-                onClick={doIOSOpenTab}
+              {/* Real <a> tag — NOT a button calling window.open. Native link
+                  taps aren't popup-blocked. Safari opens the PDF inline with
+                  its toolbar so the user can tap Share → Save to Files. */}
+              <a
+                href={ready.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setSavedAt(new Date())}
                 className={`focus-accent inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${
-                  canShareFiles
+                  canShare
                     ? 'border border-border bg-surface text-primary hover:border-border-strong'
                     : 'bg-accent-600 text-white hover:opacity-90'
                 }`}
               >
                 <ExternalLink className="h-4 w-4" aria-hidden />
                 Open PDF
-              </button>
+              </a>
             </>
           ) : (
             <>
               <button
                 type="button"
-                onClick={() => doAnchorDownload(ready)}
+                onClick={() => {
+                  const a = document.createElement('a')
+                  a.href = ready.url
+                  a.download = ready.filename
+                  document.body.appendChild(a)
+                  a.click()
+                  document.body.removeChild(a)
+                  setSavedAt(new Date())
+                }}
                 className="focus-accent inline-flex items-center justify-center gap-2 rounded-full bg-accent-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
               >
                 <Download className="h-4 w-4" aria-hidden />
                 {savedAt ? 'Download again' : 'Download'}
               </button>
-              {canShareFiles && (
+              {canShare && (
                 <button
                   type="button"
-                  onClick={() => void doIOSShare()}
+                  onClick={() => void handleShare()}
                   className="focus-accent inline-flex items-center justify-center gap-2 rounded-full border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-primary transition-colors hover:border-border-strong"
                 >
                   <Share2 className="h-4 w-4" aria-hidden />
@@ -236,6 +267,10 @@ export default function DownloadButton({
             </button>
           )}
         </div>
+
+        {error && (
+          <p className="mt-3 text-sm text-red-600" role="alert">{error}</p>
+        )}
       </div>
     )
   }
