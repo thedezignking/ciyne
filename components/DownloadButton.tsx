@@ -85,7 +85,12 @@ export default function DownloadButton({
     try {
       let finalPdf = pdfFile
       if (payload.filledTextFields && payload.filledTextFields.length > 0) {
-        finalPdf = await createCleanPdf(pdfFile, payload.filledTextFields)
+        try {
+          finalPdf = await createCleanPdf(pdfFile, payload.filledTextFields)
+        } catch (cleanErr) {
+          console.error('createCleanPdf failed:', cleanErr)
+          // Continue with original PDF — signature will still be applied
+        }
       }
 
       const formData = new FormData()
@@ -105,10 +110,25 @@ export default function DownloadButton({
         formData.append('textAnnotations', JSON.stringify(payload.textAnnotations))
       }
 
-      const res = await fetch('/api/process', { method: 'POST', body: formData })
+      let res: Response
+      try {
+        res = await fetch('/api/process', { method: 'POST', body: formData })
+      } catch (fetchErr) {
+        throw new Error(
+          `Network error: ${fetchErr instanceof Error ? fetchErr.message : 'Could not reach server'}`
+        )
+      }
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error ?? 'Download failed')
+        let detail = ''
+        try {
+          const text = await res.text()
+          const data = JSON.parse(text) as { error?: string }
+          detail = data.error || text.slice(0, 200)
+        } catch {
+          detail = `HTTP ${res.status}`
+        }
+        throw new Error(detail || `Server error (${res.status})`)
       }
 
       const blob = await res.blob()

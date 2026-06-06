@@ -5,6 +5,7 @@ import { MAX_PDF_BYTES } from '@/types'
 import type { TextAnnotation, FilledTextField } from '@/types'
 
 export const runtime = 'nodejs'
+export const maxDuration = 30
 
 function validTextAnnotation(a: unknown): a is TextAnnotation {
   if (!a || typeof a !== 'object') return false
