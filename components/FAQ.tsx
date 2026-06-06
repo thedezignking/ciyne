@@ -11,7 +11,11 @@ const ITEMS = [
   },
   {
     q: 'Do you store my documents?',
-    a: 'No. Your PDF and signature stay in your browser. Nothing is uploaded to a server.',
+    a: 'No. Your PDF and signature stay in your browser. The AI features send only a page image for analysis — never the full document — and nothing is stored.',
+  },
+  {
+    q: 'How does the AI form filling work?',
+    a: 'AI scans each page for unfilled placeholders like [Your Name], blank lines, or bracketed dummy text. It builds a simple form so you can type your details, and they get embedded directly into the PDF.',
   },
   {
     q: 'What signature formats work?',
@@ -23,7 +27,7 @@ const ITEMS = [
   },
   {
     q: 'What\'s the file size limit?',
-    a: 'PDFs up to 20 MB. Processing runs entirely in your browser.',
+    a: 'PDFs up to 20 MB. Signature placement and text filling run in your browser; only AI detection uses a quick server call.',
   },
   {
     q: 'Can I sign on a specific page?',

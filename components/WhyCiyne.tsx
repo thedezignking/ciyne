@@ -1,7 +1,12 @@
-import { ShieldOff, FileCheck, Layers, Infinity } from 'lucide-react'
+import { ShieldOff, FileCheck, Sparkles, Layers, Infinity } from 'lucide-react'
 import Reveal from '@/components/Reveal'
 
 const POINTS = [
+  {
+    icon: Sparkles,
+    title: 'AI-powered form filling',
+    body: 'AI detects placeholder fields — names, dates, blanks — and lets you fill them all at once before signing.',
+  },
   {
     icon: ShieldOff,
     title: 'No account needed',
