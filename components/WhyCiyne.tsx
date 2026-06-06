@@ -1,4 +1,4 @@
-import { ShieldOff, FileCheck, Sparkles, Layers, Infinity } from 'lucide-react'
+import { ShieldOff, FileCheck, Sparkles, Layers } from 'lucide-react'
 import Reveal from '@/components/Reveal'
 
 const POINTS = [
@@ -21,11 +21,6 @@ const POINTS = [
     icon: Layers,
     title: 'Original quality',
     body: 'Your signature is composited onto the original file. No re-encoding, no resolution loss.',
-  },
-  {
-    icon: Infinity,
-    title: 'Free, no limits',
-    body: 'Sign as many documents as you need. No trial period, no per-document fee, no premium tier.',
   },
 ]
 
