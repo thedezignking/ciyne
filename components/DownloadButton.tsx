@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Download, Check, PenLine, Share2, ExternalLink } from 'lucide-react'
 import type { ProcessPayload } from '@/types'
+import { createCleanPdf } from '@/lib/createCleanPdf'
 
 type DownloadButtonProps = {
   pdfFile: File
@@ -98,8 +99,16 @@ export default function DownloadButton({
     }
 
     try {
+      // If text fields were filled, create a brand new PDF first:
+      // server blanks placeholders from content streams → client renders
+      // cleaned pages → draws replacement text → builds new image-based PDF.
+      let finalPdf = pdfFile
+      if (payload.filledTextFields && payload.filledTextFields.length > 0) {
+        finalPdf = await createCleanPdf(pdfFile, payload.filledTextFields)
+      }
+
       const formData = new FormData()
-      formData.append('originalPDF', pdfFile)
+      formData.append('originalPDF', finalPdf)
       formData.append('signatureImage', payload.signatureImage)
       formData.append('pageIndex', String(payload.pageIndex))
       formData.append('x', String(payload.x))
@@ -113,9 +122,6 @@ export default function DownloadButton({
       }
       if (payload.textAnnotations && payload.textAnnotations.length > 0) {
         formData.append('textAnnotations', JSON.stringify(payload.textAnnotations))
-      }
-      if (payload.filledTextFields && payload.filledTextFields.length > 0) {
-        formData.append('filledTextFields', JSON.stringify(payload.filledTextFields))
       }
 
       const res = await fetch('/api/process', { method: 'POST', body: formData })
@@ -243,7 +249,7 @@ export default function DownloadButton({
         className="focus-accent inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-7 py-3.5 text-sm font-semibold text-[var(--btn-primary-fg)] transition-colors hover:bg-[var(--btn-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
         <Download className="h-4 w-4" aria-hidden />
-        {loading ? 'Applying signature…' : 'Apply signature & download'}
+        {loading ? 'Creating your PDF…' : 'Apply signature & download'}
       </button>
       {error && (
         <p className="text-sm text-red-600" role="alert">
