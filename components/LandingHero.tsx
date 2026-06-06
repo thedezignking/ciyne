@@ -78,17 +78,17 @@ export default function LandingHero({ onStart }: LandingHeroProps) {
               className="animate-rise mt-5 text-balance text-[clamp(2.5rem,7vw,4.5rem)] font-extrabold leading-[1.02] tracking-[-0.03em] text-[var(--text-primary)]"
               style={{ animationDelay: '0.05s' }}
             >
-              Sign any PDF
+              Sign &amp; fill any
               <br />
-              in seconds.
+              PDF in seconds.
             </h1>
 
             <p
               className="animate-rise mt-5 max-w-md text-pretty text-base leading-relaxed text-[var(--text-secondary)] sm:text-lg"
               style={{ animationDelay: '0.15s' }}
             >
-              Upload a document, drop in your handwritten signature, drag it into place, and
-              download it signed. No watermark, no quality loss, no sign-up.
+              Upload a document, let AI detect the blanks, fill in your details, place your
+              signature, and download — all in your browser. No watermark, no sign-up.
             </p>
 
             <div
@@ -115,7 +115,7 @@ export default function LandingHero({ onStart }: LandingHeroProps) {
               className="animate-fade mt-6 text-xs font-medium text-[var(--text-muted)]"
               style={{ animationDelay: '0.4s' }}
             >
-              Works with any PDF · Up to 20 MB · JPG, PNG &amp; WEBP signatures
+              Works with any PDF · AI form filling · Up to 20 MB
             </p>
           </div>
 

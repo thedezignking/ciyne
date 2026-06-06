@@ -1,4 +1,4 @@
-import { Upload, PenTool, Download } from 'lucide-react'
+import { Upload, PenTool, Sparkles, Download } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import Reveal from '@/components/Reveal'
 
@@ -13,6 +13,11 @@ const STEPS: Step[] = [
     icon: Upload,
     title: 'Upload your PDF',
     body: 'Drop in any PDF up to 20 MB. Navigate through every page to find exactly where you need to sign.',
+  },
+  {
+    icon: Sparkles,
+    title: 'AI fills the blanks',
+    body: 'AI scans each page for placeholder fields like [Your Name] or blank lines and builds a form. Type your details and they get embedded cleanly into the document.',
   },
   {
     icon: PenTool,
@@ -38,7 +43,7 @@ export default function HowItWorks() {
                 How it works
               </span>
               <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
-                Three steps, under two minutes.
+                Four steps, under two minutes.
               </h2>
               <p className="mt-4 max-w-sm text-base leading-relaxed text-[var(--text-secondary)]">
                 No account, no setup, no tutorial. Upload, sign, and download the finished file.

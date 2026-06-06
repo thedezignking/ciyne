@@ -45,7 +45,7 @@ export default function SiteFooter({ onStart }: SiteFooterProps) {
           <span className="text-sm font-bold text-[var(--text-primary)]">Ciyne</span>
         </div>
         <p className="text-xs text-[var(--text-muted)]">
-          Free PDF signing · no account · no watermark
+          AI-powered PDF signing · no account · no watermark
         </p>
         <p className="text-xs text-[var(--text-muted)]">
           © {new Date().getFullYear()} Ciyne

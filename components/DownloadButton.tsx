@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Download, Check, PenLine, Share2 } from 'lucide-react'
 import type { ProcessPayload } from '@/types'
+import { fillTextFieldsInPdf } from '@/lib/fillTextFieldsClient'
 
 type DownloadButtonProps = {
   pdfFile: File
@@ -82,8 +83,16 @@ export default function DownloadButton({
     }
 
     try {
+      // If text fields were filled, bake them into the PDF client-side first.
+      // This renders affected pages as images with replacements drawn in,
+      // producing clean output that looks native rather than overlaid.
+      let finalPdf = pdfFile
+      if (payload.filledTextFields && payload.filledTextFields.length > 0) {
+        finalPdf = await fillTextFieldsInPdf(pdfFile, payload.filledTextFields)
+      }
+
       const formData = new FormData()
-      formData.append('originalPDF', pdfFile)
+      formData.append('originalPDF', finalPdf)
       formData.append('signatureImage', payload.signatureImage)
       formData.append('pageIndex', String(payload.pageIndex))
       formData.append('x', String(payload.x))
@@ -97,9 +106,6 @@ export default function DownloadButton({
       }
       if (payload.textAnnotations && payload.textAnnotations.length > 0) {
         formData.append('textAnnotations', JSON.stringify(payload.textAnnotations))
-      }
-      if (payload.filledTextFields && payload.filledTextFields.length > 0) {
-        formData.append('filledTextFields', JSON.stringify(payload.filledTextFields))
       }
 
       const res = await fetch('/api/process', { method: 'POST', body: formData })
