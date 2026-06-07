@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Download, Check, PenLine, Share2, ExternalLink } from 'lucide-react'
 import type { ProcessPayload } from '@/types'
-import { createCleanPdf } from '@/lib/createCleanPdf'
-import { embedSignatureClient } from '@/lib/embedSignatureClient'
 
 type DownloadButtonProps = {
   pdfFile: File
@@ -102,32 +100,15 @@ export default function DownloadButton({
     }
 
     try {
-      const hasFilledFields =
-        !!payload.filledTextFields && payload.filledTextFields.length > 0
-
-      // On desktop, produce a clean paint-over PDF for filled fields so the
-      // placeholder text is replaced rather than overlaid. On mobile this is
-      // skipped (canvas rendering exceeds memory limits) and the fields are
-      // drawn as a white-rect overlay by embedSignatureClient instead.
-      let basePdf: File = pdfFile
-      let fieldsForEmbed = payload.filledTextFields
-      if (!isMobile && hasFilledFields) {
-        try {
-          basePdf = await createCleanPdf(pdfFile, payload.filledTextFields!)
-          fieldsForEmbed = undefined // already baked into basePdf
-        } catch (cleanErr) {
-          console.error('createCleanPdf failed:', cleanErr)
-        }
-      }
-
-      // Build the fully signed PDF entirely in the browser. No server call —
-      // this avoids Vercel's 4.5 MB request-body limit (the 413 error).
+      // Build the fully signed PDF in the browser using the smart embed engine.
+      // This uses pdf.js to find exact text positions and extracts the document's
+      // own embedded font so replacement text matches perfectly (the WPS approach).
       let signedBytes: Uint8Array
       try {
-        const pdfBytes = await basePdf.arrayBuffer()
         const signaturePngBytes = dataUrlToUint8Array(payload.signatureImage)
-        signedBytes = await embedSignatureClient({
-          pdfBytes,
+        const { smartEmbed } = await import('@/lib/smartEmbed')
+        signedBytes = await smartEmbed({
+          pdfFile,
           signaturePngBytes,
           placement: {
             pageIndex: payload.pageIndex,
@@ -140,7 +121,7 @@ export default function DownloadButton({
           },
           placements: payload.placements,
           textAnnotations: payload.textAnnotations,
-          filledTextFields: fieldsForEmbed,
+          filledTextFields: payload.filledTextFields,
         })
       } catch (embedErr) {
         throw new Error(
