@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Download, Check, PenLine, Share2, ExternalLink } from 'lucide-react'
 import type { ProcessPayload } from '@/types'
 import { createCleanPdf } from '@/lib/createCleanPdf'
+import { embedSignatureClient } from '@/lib/embedSignatureClient'
 
 type DownloadButtonProps = {
   pdfFile: File
@@ -56,6 +57,14 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
+function dataUrlToUint8Array(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1]! : dataUrl
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
 export default function DownloadButton({
   pdfFile,
   payload,
@@ -93,60 +102,55 @@ export default function DownloadButton({
     }
 
     try {
-      let finalPdf = pdfFile
-      // Skip createCleanPdf on iOS/mobile — canvas rendering uses too much memory
-      if (!isMobile && payload.filledTextFields && payload.filledTextFields.length > 0) {
+      const hasFilledFields =
+        !!payload.filledTextFields && payload.filledTextFields.length > 0
+
+      // On desktop, produce a clean paint-over PDF for filled fields so the
+      // placeholder text is replaced rather than overlaid. On mobile this is
+      // skipped (canvas rendering exceeds memory limits) and the fields are
+      // drawn as a white-rect overlay by embedSignatureClient instead.
+      let basePdf: File = pdfFile
+      let fieldsForEmbed = payload.filledTextFields
+      if (!isMobile && hasFilledFields) {
         try {
-          finalPdf = await createCleanPdf(pdfFile, payload.filledTextFields)
+          basePdf = await createCleanPdf(pdfFile, payload.filledTextFields!)
+          fieldsForEmbed = undefined // already baked into basePdf
         } catch (cleanErr) {
           console.error('createCleanPdf failed:', cleanErr)
         }
       }
 
-      const formData = new FormData()
-      formData.append('originalPDF', finalPdf)
-      formData.append('signatureImage', payload.signatureImage)
-      formData.append('pageIndex', String(payload.pageIndex))
-      formData.append('x', String(payload.x))
-      formData.append('y', String(payload.y))
-      formData.append('width', String(payload.width))
-      formData.append('height', String(payload.height))
-      formData.append('canvasWidth', String(payload.canvasWidth))
-      formData.append('canvasHeight', String(payload.canvasHeight))
-      if (payload.placements && payload.placements.length > 0) {
-        formData.append('placements', JSON.stringify(payload.placements))
-      }
-      if (payload.textAnnotations && payload.textAnnotations.length > 0) {
-        formData.append('textAnnotations', JSON.stringify(payload.textAnnotations))
-      }
-      if (isMobile && payload.filledTextFields && payload.filledTextFields.length > 0) {
-        formData.append('filledTextFields', JSON.stringify(payload.filledTextFields))
-      }
-
-      let res: Response
+      // Build the fully signed PDF entirely in the browser. No server call —
+      // this avoids Vercel's 4.5 MB request-body limit (the 413 error).
+      let signedBytes: Uint8Array
       try {
-        res = await fetch('/api/process', { method: 'POST', body: formData })
-      } catch (fetchErr) {
+        const pdfBytes = await basePdf.arrayBuffer()
+        const signaturePngBytes = dataUrlToUint8Array(payload.signatureImage)
+        signedBytes = await embedSignatureClient({
+          pdfBytes,
+          signaturePngBytes,
+          placement: {
+            pageIndex: payload.pageIndex,
+            x: payload.x,
+            y: payload.y,
+            width: payload.width,
+            height: payload.height,
+            canvasWidth: payload.canvasWidth,
+            canvasHeight: payload.canvasHeight,
+          },
+          placements: payload.placements,
+          textAnnotations: payload.textAnnotations,
+          filledTextFields: fieldsForEmbed,
+        })
+      } catch (embedErr) {
         throw new Error(
-          `Network error: ${fetchErr instanceof Error ? fetchErr.message : 'Could not reach server'}`
+          `Could not create PDF: ${embedErr instanceof Error ? embedErr.message : 'unknown error'}`
         )
       }
 
-      if (!res.ok) {
-        let detail = ''
-        try {
-          const text = await res.text()
-          const data = JSON.parse(text) as { error?: string }
-          detail = data.error || text.slice(0, 200)
-        } catch {
-          detail = `HTTP ${res.status}`
-        }
-        throw new Error(detail || `Server error (${res.status})`)
-      }
-
-      const blob = await res.blob()
+      const blob = new Blob([signedBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       if (!blob || blob.size === 0) {
-        throw new Error('Server returned an empty PDF')
+        throw new Error('Generated PDF was empty')
       }
 
       const filename = (pdfFile.name.replace(/\.pdf$/i, '') || 'signed') + '-signed.pdf'
