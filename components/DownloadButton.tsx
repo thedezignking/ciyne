@@ -20,12 +20,13 @@ type ReadyState = {
 }
 
 function detectPlatform() {
-  if (typeof navigator === 'undefined') return { isIOS: false, isInApp: false }
+  if (typeof navigator === 'undefined') return { isIOS: false, isInApp: false, isMobile: false }
   const ua = navigator.userAgent
   const isIOS = /iPad|iPhone|iPod/.test(ua) ||
     (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
   const isInApp = /FBAN|FBAV|Instagram|Line\/|Twitter|TikTok|Snapchat|Pinterest/i.test(ua)
-  return { isIOS, isInApp }
+  const isMobile = isIOS || /Android/i.test(ua)
+  return { isIOS, isInApp, isMobile }
 }
 
 function tryCreateFile(blob: Blob, name: string): File | null {
@@ -46,6 +47,15 @@ function tryCanShareFiles(): boolean {
   }
 }
 
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error('Failed to read PDF'))
+    reader.readAsDataURL(blob)
+  })
+}
+
 export default function DownloadButton({
   pdfFile,
   payload,
@@ -56,7 +66,7 @@ export default function DownloadButton({
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState<ReadyState | null>(null)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
-  const [platform, setPlatform] = useState({ isIOS: false, isInApp: false })
+  const [platform, setPlatform] = useState({ isIOS: false, isInApp: false, isMobile: false })
   const [canShare, setCanShare] = useState(false)
 
   const urlRef = useRef<string | null>(null)
@@ -69,7 +79,7 @@ export default function DownloadButton({
     setCanShare(tryCanShareFiles())
   }, [])
 
-  const { isIOS, isInApp } = platform
+  const { isIOS, isInApp, isMobile } = platform
 
   async function handleApplyAndDownload() {
     if (!payload) return
@@ -84,12 +94,12 @@ export default function DownloadButton({
 
     try {
       let finalPdf = pdfFile
-      if (payload.filledTextFields && payload.filledTextFields.length > 0) {
+      // Skip createCleanPdf on iOS/mobile — canvas rendering uses too much memory
+      if (!isMobile && payload.filledTextFields && payload.filledTextFields.length > 0) {
         try {
           finalPdf = await createCleanPdf(pdfFile, payload.filledTextFields)
         } catch (cleanErr) {
           console.error('createCleanPdf failed:', cleanErr)
-          // Continue with original PDF — signature will still be applied
         }
       }
 
@@ -108,6 +118,9 @@ export default function DownloadButton({
       }
       if (payload.textAnnotations && payload.textAnnotations.length > 0) {
         formData.append('textAnnotations', JSON.stringify(payload.textAnnotations))
+      }
+      if (isMobile && payload.filledTextFields && payload.filledTextFields.length > 0) {
+        formData.append('filledTextFields', JSON.stringify(payload.filledTextFields))
       }
 
       let res: Response
@@ -137,17 +150,25 @@ export default function DownloadButton({
       }
 
       const filename = (pdfFile.name.replace(/\.pdf$/i, '') || 'signed') + '-signed.pdf'
-      const url = URL.createObjectURL(blob)
-      urlRef.current = url
       const file = tryCreateFile(blob, filename)
 
-      const state: ReadyState = { url, filename, blob, file }
-      setReady(state)
+      if (isIOS || isInApp) {
+        // On iOS, blob URLs in new tabs are unreliable. Convert to data URL
+        // which Safari handles natively in its PDF viewer.
+        let url: string
+        try {
+          url = await blobToDataUrl(blob)
+        } catch {
+          url = URL.createObjectURL(blob)
+          urlRef.current = url
+        }
+        setReady({ url, filename, blob, file })
+      } else {
+        const url = URL.createObjectURL(blob)
+        urlRef.current = url
+        const state: ReadyState = { url, filename, blob, file }
+        setReady(state)
 
-      // On iOS / in-app browsers, NEVER auto-fire. The async fetch breaks
-      // the user gesture chain, so any programmatic navigation gets blocked.
-      // Show the ready card and let the user tap (= fresh user gesture).
-      if (!isIOS && !isInApp) {
         const a = document.createElement('a')
         a.href = url
         a.download = filename
@@ -217,7 +238,6 @@ export default function DownloadButton({
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           {isIOS || isInApp ? (
             <>
-              {/* iOS/in-app primary: navigator.share (opens native share sheet) */}
               {canShare && (
                 <button
                   type="button"
@@ -228,12 +248,11 @@ export default function DownloadButton({
                   Save to device
                 </button>
               )}
-              {/* Real <a> tag — NOT a button calling window.open. Native link
-                  taps aren't popup-blocked. Safari opens the PDF inline with
-                  its toolbar so the user can tap Share → Save to Files. */}
+              {/* Open PDF in same tab — iOS Safari renders PDFs inline with
+                  its native toolbar (share, save to Files, etc). Using
+                  target=_blank with blob/data URLs fails on iOS. */}
               <a
                 href={ready.url}
-                target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setSavedAt(new Date())}
                 className={`focus-accent inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${
