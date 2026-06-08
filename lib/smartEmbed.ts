@@ -4,7 +4,7 @@
  * Smart PDF embedding — the WPS-style approach:
  * 1. Uses pdf.js to locate exact text geometry for each placeholder field
  * 2. Extracts the embedded font from the PDF to reuse it (font doesn't change)
- * 3. Covers the precise text box with background-matched color
+ * 3. Covers the precise text box with white
  * 4. Redraws replacement text in the SAME font, size, and color
  *
  * Falls back to Helvetica if font extraction fails (subset missing glyphs).
@@ -93,7 +93,7 @@ export async function smartEmbed(input: SmartEmbedInput): Promise<Uint8Array> {
   if (input.filledTextFields && input.filledTextFields.length > 0) {
     const nonEmpty = input.filledTextFields.filter((f) => f.value.trim())
     if (nonEmpty.length > 0) {
-      await embedFieldsSmart(pdfDoc, pdfBytes, nonEmpty, fontkit)
+      await embedFieldsSmart(pdfDoc, pdfBytes, nonEmpty)
     }
   }
 
@@ -103,8 +103,7 @@ export async function smartEmbed(input: SmartEmbedInput): Promise<Uint8Array> {
 async function embedFieldsSmart(
   pdfDoc: PDFDocumentType,
   originalPdfBytes: ArrayBuffer,
-  fields: FilledTextField[],
-  fontkit: unknown
+  fields: FilledTextField[]
 ): Promise<void> {
   const { StandardFonts, rgb } = await import('pdf-lib')
   const pages = pdfDoc.getPages()
@@ -125,7 +124,7 @@ async function embedFieldsSmart(
       const data = await extractPageText(originalPdfBytes, pageIndex)
       textDataByPage.set(pageIndex, data)
     } catch {
-      // pdf.js extraction failed for this page — will use approximate coords
+      // pdf.js extraction failed — will use approximate coords
     }
   }
 
@@ -145,77 +144,59 @@ async function embedFieldsSmart(
     let allItems: PdfTextItem[] = []
 
     if (textData) {
-      // Find the text item that matches this field's position
       matchedItem = findMatchingTextItem(
         textData.items,
         { x: field.x, y: field.y, width: field.width, height: field.height },
         field.placeholder
       )
 
-      // Also find ALL items in the box (placeholder might span multiple items)
       allItems = findAllItemsInBox(
         textData.items,
         { x: field.x, y: field.y, width: field.width, height: field.height }
       )
 
-      // Try to find the matching font
       if (matchedItem && matchedItem.fontName) {
-        matchedFont = extractedFonts.get(matchedItem.fontName) ?? null
-        // Try without the leading slash
-        if (!matchedFont) {
-          const cleanName = matchedItem.fontName.replace(/^\//, '')
-          for (const [key, font] of Array.from(extractedFonts.entries())) {
-            if (key.includes(cleanName) || cleanName.includes(cleanFontName(key))) {
-              matchedFont = font
-              break
-            }
-          }
-        }
+        matchedFont = lookupFont(extractedFonts, matchedItem.fontName)
       }
     }
 
     return { ...field, matchedItem, matchedFont, allItems }
   })
 
-  // Cache for embedded fonts (don't embed the same font twice)
+  // Cache for embedded fonts (don't embed the same font bytes twice)
   const embeddedFontCache = new Map<string, Awaited<ReturnType<typeof pdfDoc.embedFont>>>()
 
   // Get standard fallback fonts
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
   const times = await pdfDoc.embedFont(StandardFonts.TimesRoman)
   const courier = await pdfDoc.embedFont(StandardFonts.Courier)
-
   const fallbackFonts = { helvetica, times, courier }
 
   for (const field of resolvedFields) {
     const page = pages[field.pageIndex]
     const { width: pdfWidth, height: pdfHeight } = page.getSize()
 
-    // Determine the precise cover area
     let coverX: number, coverY: number, coverW: number, coverH: number
     let drawX: number, drawY: number, fontSize: number
-    let embeddedFont = helvetica // default
+    let embeddedFont = helvetica
 
     if (field.matchedItem) {
-      // We have exact geometry from pdf.js — use it!
       const item = field.matchedItem
 
-      // If multiple items span the box, compute the combined bounding box
+      // Compute the bounding box to cover — use ALL items in the box
+      // so multi-run placeholders ("[Your", " ", "Name]") are fully covered.
       if (field.allItems.length > 1) {
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+        let minX = Infinity, maxX = -Infinity, minBaseY = Infinity, maxTopY = -Infinity
         for (const it of field.allItems) {
-          const itX = it.norm.x * pdfWidth
-          const itY = (1 - it.norm.y - it.norm.height) * pdfHeight
-          minX = Math.min(minX, itX)
-          maxX = Math.max(maxX, itX + it.norm.width * pdfWidth)
-          minY = Math.min(minY, itY)
-          maxY = Math.max(maxY, itY + it.norm.height * pdfHeight)
+          minX = Math.min(minX, it.x)
+          maxX = Math.max(maxX, it.x + it.width)
+          minBaseY = Math.min(minBaseY, it.y)
+          maxTopY = Math.max(maxTopY, it.y + it.height)
         }
         coverX = minX
-        coverY = minY
+        coverY = minBaseY
         coverW = maxX - minX
-        coverH = maxY - minY
+        coverH = maxTopY - minBaseY
       } else {
         coverX = item.x
         coverY = item.y
@@ -224,63 +205,39 @@ async function embedFieldsSmart(
       }
 
       fontSize = item.fontSize
+      // pdf-lib drawText positions at the baseline.
+      // item.y IS the baseline (from pdf.js transform[5]).
       drawX = coverX
-      // Baseline: text draws from the baseline, which is roughly 20% above the bottom
-      drawY = coverY
+      drawY = item.y
 
       // Try to use the document's own font
-      if (field.matchedFont && field.matchedFont.type === 'truetype') {
-        try {
-          const cacheKey = field.matchedFont.name
-          if (embeddedFontCache.has(cacheKey)) {
-            embeddedFont = embeddedFontCache.get(cacheKey)!
-          } else {
-            embeddedFont = await pdfDoc.embedFont(field.matchedFont.bytes, { subset: false })
-            embeddedFontCache.set(cacheKey, embeddedFont)
-          }
-        } catch {
-          // Font embedding failed (likely subset missing glyphs)
-          // Fall back to a matching standard font
-          const fallbackType = matchFallbackFont(field.matchedFont.name)
-          embeddedFont = fallbackFonts[fallbackType]
-        }
-      } else if (field.matchedFont && field.matchedFont.type === 'opentype') {
-        try {
-          const cacheKey = field.matchedFont.name
-          if (embeddedFontCache.has(cacheKey)) {
-            embeddedFont = embeddedFontCache.get(cacheKey)!
-          } else {
-            embeddedFont = await pdfDoc.embedFont(field.matchedFont.bytes, { subset: false })
-            embeddedFontCache.set(cacheKey, embeddedFont)
-          }
-        } catch {
-          const fallbackType = matchFallbackFont(field.matchedFont.name)
-          embeddedFont = fallbackFonts[fallbackType]
-        }
-      } else if (field.matchedItem.fontName) {
-        // No extracted font bytes but we know the name — match to standard
-        const fallbackType = matchFallbackFont(field.matchedItem.fontName)
-        embeddedFont = fallbackFonts[fallbackType]
-      }
+      embeddedFont = await resolveEmbeddedFont(
+        pdfDoc, field.matchedFont, field.matchedItem.fontName,
+        embeddedFontCache, fallbackFonts
+      )
     } else {
-      // No pdf.js match — fall back to field's approximate coordinates
+      // No pdf.js match — use the AI's approximate coordinates
       coverX = field.x * pdfWidth
       coverW = field.width * pdfWidth
       coverH = field.height * pdfHeight
       coverY = pdfHeight - (field.y + field.height) * pdfHeight
+
       fontSize = field.fontScale > 0 ? field.fontScale * pdfHeight : coverH * 0.7
       drawX = coverX
+      // Approximate baseline: 25% up from the bottom of the box
       drawY = coverY + coverH * 0.25
     }
 
     // --- COVER: paint over the old text with white ---
-    // Add padding to ensure no leftover anti-aliased pixels
-    const pad = Math.max(1, coverH * 0.08)
+    // Pad must cover descenders (~25% of fontSize below baseline) and
+    // a bit of ascender overshoot above.
+    const padV = Math.max(2, fontSize * 0.3)
+    const padH = Math.max(2, fontSize * 0.1)
     page.drawRectangle({
-      x: coverX - pad,
-      y: coverY - pad,
-      width: coverW + pad * 2,
-      height: coverH + pad * 2,
+      x: coverX - padH,
+      y: coverY - padV,
+      width: coverW + padH * 2,
+      height: coverH + padV * 2,
       color: rgb(1, 1, 1),
       borderWidth: 0,
     })
@@ -294,9 +251,77 @@ async function embedFieldsSmart(
       size: fontSize,
       font: embeddedFont,
       color: rgb(r, g, b),
-      maxWidth: coverW + pad * 2,
+      maxWidth: coverW > 0 ? coverW + padH * 2 : undefined,
     })
   }
+}
+
+/**
+ * Look up an extracted font by pdf.js font name. pdf.js font names can be:
+ *  - Internal names like "g_d0_f1"
+ *  - BaseFont names like "BCDEEE+ArialMT" or "ArialMT"
+ *  - Short names like "Arial"
+ *
+ * extractFontsAsync stores fonts under resource name, BaseFont, and cleaned name.
+ */
+function lookupFont(
+  extractedFonts: Map<string, ExtractedFont>,
+  pdfJsFontName: string
+): ExtractedFont | null {
+  // Direct lookup (resource name or BaseFont name)
+  const direct = extractedFonts.get(pdfJsFontName)
+  if (direct) return direct
+
+  // Strip leading slash
+  const clean = pdfJsFontName.replace(/^\//, '')
+  const found = extractedFonts.get(clean)
+  if (found) return found
+
+  // Strip subset prefix
+  const noSubset = cleanFontName(clean)
+  const found2 = extractedFonts.get(noSubset)
+  if (found2) return found2
+
+  // Fuzzy: check if the pdf.js name contains or is contained by any key
+  for (const [key, font] of Array.from(extractedFonts.entries())) {
+    const cleanKey = cleanFontName(key).toLowerCase()
+    const cleanSearch = noSubset.toLowerCase()
+    if (cleanKey && cleanSearch && (cleanKey.includes(cleanSearch) || cleanSearch.includes(cleanKey))) {
+      return font
+    }
+  }
+
+  return null
+}
+
+/**
+ * Resolve the best font to use for a field:
+ * 1. Try embedding the document's own extracted font (truetype or opentype)
+ * 2. Fall back to a matching standard font (Helvetica/Times/Courier)
+ */
+async function resolveEmbeddedFont(
+  pdfDoc: PDFDocumentType,
+  matchedFont: ExtractedFont | null,
+  fontName: string,
+  cache: Map<string, Awaited<ReturnType<typeof pdfDoc.embedFont>>>,
+  fallbacks: Record<'helvetica' | 'times' | 'courier', Awaited<ReturnType<typeof pdfDoc.embedFont>>>
+) {
+  if (matchedFont && (matchedFont.type === 'truetype' || matchedFont.type === 'opentype')) {
+    const cacheKey = matchedFont.name
+    if (cache.has(cacheKey)) return cache.get(cacheKey)!
+
+    try {
+      const embedded = await pdfDoc.embedFont(matchedFont.bytes, { subset: false })
+      cache.set(cacheKey, embedded)
+      return embedded
+    } catch {
+      // Font embedding failed (subset missing glyphs, corrupt, etc.)
+    }
+  }
+
+  // Fall back to the closest standard font
+  const fallbackType = matchFallbackFont(matchedFont?.name || fontName)
+  return fallbacks[fallbackType]
 }
 
 function parseHexColor(hex: string): { r: number; g: number; b: number } {
