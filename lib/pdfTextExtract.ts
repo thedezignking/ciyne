@@ -8,9 +8,13 @@
 
 export type PdfTextItem = {
   str: string
+  /** X coordinate in PDF points (from left) */
   x: number
+  /** Y coordinate = baseline in PDF points (from bottom) */
   y: number
+  /** Width of the text run in PDF points */
   width: number
+  /** Height of the text run in PDF points (= fontSize) */
   height: number
   fontName: string
   fontSize: number
@@ -56,25 +60,30 @@ export async function extractPageText(
     // transform is [scaleX, skewY, skewX, scaleY, translateX, translateY]
     const tx = item.transform
     const fontSize = Math.abs(tx[3]) || Math.abs(tx[0])
+    if (fontSize <= 0) continue
+
     const x = tx[4]
-    // pdf.js transform Y is from bottom-left; convert to top-left
-    const yBottom = tx[5]
-    const height = fontSize
+    // tx[5] is the baseline Y position (from page bottom)
+    const baselineY = tx[5]
     const width = item.width || 0
-    // Y from top (for normalized coords)
-    const yTop = pageHeight - yBottom - height
+    const height = fontSize
+
+    // For normalized coords (origin top-left, 0-1):
+    // The top of the text is approximately baseline + ascent ≈ baseline + fontSize * 0.8
+    // We use the full fontSize as the box height for matching purposes
+    const yTop = pageHeight - baselineY - height
 
     items.push({
       str: item.str,
       x,
-      y: yBottom,
+      y: baselineY,
       width,
       height,
       fontName: item.fontName || '',
       fontSize,
       norm: {
         x: x / pageWidth,
-        y: yTop / pageHeight,
+        y: Math.max(0, yTop / pageHeight),
         width: width / pageWidth,
         height: height / pageHeight,
       },
@@ -87,7 +96,7 @@ export async function extractPageText(
 
 /**
  * Find the text item that best matches a given normalized bounding box.
- * Uses overlap/proximity scoring.
+ * Uses overlap + proximity + text-content scoring.
  */
 export function findMatchingTextItem(
   items: PdfTextItem[],
@@ -112,16 +121,19 @@ export function findMatchingTextItem(
     const overlapArea = overlapX * overlapY
     const fieldArea = fieldNorm.width * fieldNorm.height
 
-    // Center-to-center distance as a tiebreaker
+    // Center-to-center distance
     const dx = (fieldNorm.x + fieldNorm.width / 2) - (item.norm.x + item.norm.width / 2)
     const dy = (fieldNorm.y + fieldNorm.height / 2) - (item.norm.y + item.norm.height / 2)
     const dist = Math.sqrt(dx * dx + dy * dy)
 
-    // Score: high overlap is good, low distance is good
     let score = overlapArea / (fieldArea || 1) - dist * 0.5
 
-    // Bonus if the text contains the placeholder string
+    // Strong bonus if the text contains the placeholder string
     if (fieldText && item.str.toLowerCase().includes(fieldText.toLowerCase())) {
+      score += 5
+    }
+    // Partial bonus for substring overlap
+    if (fieldText && fieldText.toLowerCase().includes(item.str.toLowerCase()) && item.str.length > 2) {
       score += 2
     }
 
@@ -131,7 +143,6 @@ export function findMatchingTextItem(
     }
   }
 
-  // Only accept if there's at least some proximity
   if (bestScore < -0.5) return null
   return best
 }
@@ -143,7 +154,7 @@ export function findMatchingTextItem(
 export function findAllItemsInBox(
   items: PdfTextItem[],
   fieldNorm: { x: number; y: number; width: number; height: number },
-  padding = 0.01
+  padding = 0.015
 ): PdfTextItem[] {
   const fx = fieldNorm.x - padding
   const fy = fieldNorm.y - padding
